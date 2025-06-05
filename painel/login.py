@@ -1,7 +1,7 @@
 import streamlit as st
 import sqlite3
 import hashlib
-from painel.database import verificar_usuario
+from database import verificar_usuario
 
 def hash_senha(s):
     return hashlib.sha256(s.encode()).hexdigest()

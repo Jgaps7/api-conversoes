@@ -12,11 +12,28 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from api.event import EventoConversao
 from api.services.google import enviar_para_google
 from api.services.meta import enviar_para_meta
+from painel.auth import requer_login
+
+requer_login()
+
 
 
 # --------------------- CONFIGURAÇÃO ---------------------
 st.set_page_config(page_title="Painel de Conversões", page_icon="📊", layout="wide")
 st.title("📊 Painel de Monitoramento de Eventos")
+
+with st.sidebar:
+    if st.session_state.get("autenticado"):
+        if st.button("🚪 Sair"):
+            st.session_state.clear()
+            st.success("Logout realizado com sucesso.")
+            st.rerun()
+
+
+# Proteção: só permite acesso se estiver logado
+if not st.session_state.get("autenticado"):
+    st.error("⛔ Acesso não autorizado. Faça login primeiro.")
+    st.stop()
 
 
 # --------------------- BANCO DE DADOS ---------------------

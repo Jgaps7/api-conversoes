@@ -7,6 +7,9 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 from datetime import datetime
+from painel.auth import requer_login
+
+requer_login()
 
 
 from api.event import EventoConversao
@@ -15,6 +18,14 @@ from api.services.meta import enviar_para_meta
 
 # --------------------- CONFIGURAÇÃO ---------------------
 st.set_page_config(page_title="Painel de Conversões GROW", page_icon="📊", layout="wide")
+
+with st.sidebar:
+    if st.session_state.get("autenticado"):
+        if st.button("🚪 Sair"):
+            st.session_state.clear()
+            st.success("Logout realizado com sucesso.")
+            st.rerun()
+
 
 # --------------------- CSS GLOBAL ---------------------
 st.markdown("""

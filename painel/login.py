@@ -7,7 +7,6 @@ def hash_senha(s):
     return hashlib.sha256(s.encode()).hexdigest()
 
 def main():
-    st.set_page_config(page_title="Login Grow", page_icon="🔐", layout="centered")
     st.title("🔐 Painel de Conversões - Grow Solutions")
 
     # Formulário de login

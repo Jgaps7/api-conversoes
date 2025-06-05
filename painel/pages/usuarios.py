@@ -2,6 +2,10 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 import hashlib
+from painel.auth import requer_login
+
+requer_login()
+
 
 # 🚫 Proteção: só administradores acessam
 if not st.session_state.get("autenticado"):
@@ -11,6 +15,14 @@ if not st.session_state.get("autenticado"):
 if st.session_state.get("nivel") != "admin":
     st.error("⛔ Acesso restrito a administradores.")
     st.stop()
+
+with st.sidebar:
+    if st.session_state.get("autenticado"):
+        if st.button("🚪 Sair"):
+            st.session_state.clear()
+            st.success("Logout realizado com sucesso.")
+            st.rerun()
+
 
 # Conecta ao banco
 conn = sqlite3.connect("users.db")
@@ -43,7 +55,6 @@ conn.commit()
 def hash_senha(senha):
     return hashlib.sha256(senha.encode()).hexdigest()
 
-st.set_page_config(page_title="Gerenciar Usuários e Credenciais", layout="wide")
 st.title("👥 Gerenciar Usuários e Credenciais")
 
 # Lista de usuários

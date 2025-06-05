@@ -3,10 +3,11 @@ import os
 import streamlit as st
 from painel.login import main as login_page
 
+
 st.set_page_config(page_title="Login Grow", page_icon="🔐", layout="centered")
 
 # ✅ Garante que a raiz do projeto esteja no sys.path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.dirname(__file__))
 
 
 # ✅ Protege a página de login: se o usuário já estiver logado, bloqueia acesso

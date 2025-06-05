@@ -1,5 +1,5 @@
 import sqlite3
-from event import EventoConversao
+from api.event import EventoConversao
 
 def salvar_evento(evento: EventoConversao):
     """

@@ -1,7 +1,7 @@
 import sys
 import os
 import streamlit as st
-from painel.login import main as login_page
+from login import main as login_page
 
 
 st.set_page_config(page_title="Login Grow", page_icon="🔐", layout="centered")

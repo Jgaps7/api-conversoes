@@ -14,7 +14,7 @@ load_dotenv()
 # Importa serviços
 from api.services.google import enviar_para_google
 from api.services.meta import enviar_para_meta
-from services.save_event import salvar_evento
+from api.services.save_event import salvar_evento
 from utils.logger import (
     log_evento_recebido,
     log_sucesso_google,

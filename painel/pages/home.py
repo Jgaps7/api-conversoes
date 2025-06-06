@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 from datetime import datetime
-from painel.auth import requer_login
+from auth import requer_login
 
 requer_login()
 

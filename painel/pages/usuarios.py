@@ -2,7 +2,7 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 import hashlib
-from painel.auth import requer_login
+from auth import requer_login
 
 requer_login()
 

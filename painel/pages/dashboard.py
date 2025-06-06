@@ -7,9 +7,10 @@ import streamlit as st
 import plotly.express as px
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 from api.event import EventoConversao
+
 from api.services.google import enviar_para_google
 from api.services.meta import enviar_para_meta
 from painel.auth import requer_login

@@ -149,3 +149,16 @@ for _, usuario in df_usuarios.iterrows():
             st.success("Credenciais do Google salvas com sucesso!")
 
 conn.close()
+# ------------------- CONTROLE GLOBAL DE ENVIO DE EVENTOS -------------------
+from utils.config import get_envio_ativado, set_envio_ativado
+
+if st.session_state.get("nivel") == "admin":
+    st.divider()
+    st.subheader("🔧 Controle de Envio de Eventos")
+
+    envio_atual = get_envio_ativado()
+    novo_estado = st.toggle("Envio de eventos está ativado", value=envio_atual)
+
+    if novo_estado != envio_atual:
+        set_envio_ativado(novo_estado)
+        st.success(f"✅ Envio de eventos {'ativado' if novo_estado else 'desativado'} com sucesso!")

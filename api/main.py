@@ -11,7 +11,7 @@ from slowapi.errors import RateLimitExceeded
 # Carrega variáveis de ambiente
 load_dotenv()
 
-# Importa serviços
+# Importações dos serviços e utilitários
 from api.services.google import enviar_para_google
 from api.services.meta import enviar_para_meta
 from api.services.save_event import salvar_evento
@@ -23,6 +23,7 @@ from utils.logger import (
     log_erro_meta
 )
 from utils.generate_google_yaml import gerar_google_ads_yaml
+from utils.config import get_envio_ativado  # <- nova função de controle
 
 # Gera o google-ads.yaml a partir do .env
 gerar_google_ads_yaml()
@@ -91,24 +92,29 @@ async def receber_conversao(
         if not validar_api_key(evento.email, evento.origem, x_api_key):
             raise HTTPException(status_code=403, detail="API Key inválida para esse usuário ou plataforma.")
 
-        salvar_evento(evento)
+        salvar_evento(evento)  # sempre salva
 
-        if evento.origem == "google":
-            resultado = await enviar_para_google(evento)
-            if "erro" in resultado:
-                log_erro_google(resultado["erro"], evento)
-            else:
-                log_sucesso_google(resultado, evento)
+        # Verifica se o envio está ativado
+        if get_envio_ativado():
+            if evento.origem == "google":
+                resultado = await enviar_para_google(evento)
+                if "erro" in resultado:
+                    log_erro_google(resultado["erro"], evento)
+                else:
+                    log_sucesso_google(resultado, evento)
 
-        elif evento.origem == "meta":
-            resultado = await enviar_para_meta(evento)
-            if "erro" in resultado:
-                log_erro_meta(resultado["erro"], evento)
-            else:
-                log_sucesso_meta(resultado, evento)
+            elif evento.origem == "meta":
+                resultado = await enviar_para_meta(evento)
+                if "erro" in resultado:
+                    log_erro_meta(resultado["erro"], evento)
+                else:
+                    log_sucesso_meta(resultado, evento)
 
-        print(f"[EVENTO ENVIADO] Resultado: {resultado}")
-        return {"status": "sucesso", "detalhes": resultado}
+            print(f"[EVENTO ENVIADO] Resultado: {resultado}")
+            return {"status": "sucesso", "detalhes": resultado}
+        else:
+            print("[EVENTO RECEBIDO] Envio desativado - armazenado apenas.")
+            return {"status": "recebido", "detalhes": "Envio desativado. Evento armazenado com sucesso."}
 
     except Exception as e:
         print(f"[ERRO] {str(e)}")

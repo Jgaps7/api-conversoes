@@ -1,7 +1,11 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import streamlit as st
-import sqlite3
 import hashlib
 from database import verificar_usuario
+from supabase_conn import get_connection
 
 def hash_senha(s):
     return hashlib.sha256(s.encode()).hexdigest()
@@ -39,7 +43,7 @@ def main():
 
         if criar:
             try:
-                conn = sqlite3.connect("users.db")
+                conn = get_connection()
                 cursor = conn.cursor()
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS users (
@@ -51,7 +55,7 @@ def main():
                 """)
                 cursor.execute("""
                     INSERT INTO users (email, senha, nivel)
-                    VALUES (?, ?, ?)
+                    VALUES (%s, %s, %s)
                     ON CONFLICT(email) DO UPDATE SET senha=excluded.senha, nivel=excluded.nivel
                 """, (novo_email, hash_senha(nova_senha), novo_nivel))
                 conn.commit()

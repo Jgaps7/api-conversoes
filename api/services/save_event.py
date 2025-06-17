@@ -1,13 +1,17 @@
-import sqlite3
 from api.event import EventoConversao
+from supabase_conn import get_connection  
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+
 
 def salvar_evento(evento: EventoConversao):
     """
-    Salva o evento recebido no banco SQLite (eventos.db),
-    com base na estrutura atual da tabela 'eventos'.
+    Salva o evento no banco Supabase (PostgreSQL),
+    utilizando a tabela 'eventos'.
     """
 
-    conn = sqlite3.connect("eventos.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
@@ -31,7 +35,7 @@ def salvar_evento(evento: EventoConversao):
             pais,
             evento,
             origem
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ''', (
         evento.nome,
         evento.email,

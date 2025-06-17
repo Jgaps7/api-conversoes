@@ -1,7 +1,6 @@
 import os
 import sys
 import json
-import sqlite3
 import asyncio
 import pandas as pd
 import streamlit as st
@@ -9,12 +8,14 @@ import plotly.express as px
 from datetime import datetime
 from auth import requer_login
 
-requer_login()
-
-
+# Ajuste de path para importar do projeto
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from api.event import EventoConversao
 from api.services.google import enviar_para_google
 from api.services.meta import enviar_para_meta
+from supabase_conn import get_connection
+
+requer_login()
 
 # --------------------- CONFIGURAÇÃO ---------------------
 st.set_page_config(page_title="Painel de Conversões GROW", page_icon="📊", layout="wide")
@@ -66,26 +67,41 @@ st.markdown("""
 # --------------------- BANCO DE DADOS ---------------------
 @st.cache_data(show_spinner=False)
 def carregar_eventos():
-    if not os.path.exists("eventos.db"):
+    try:
+        conn = get_connection()
+        df = pd.read_sql("SELECT * FROM eventos", conn)
+        conn.close()
+        return df
+    except Exception as e:
+        st.error(f"Erro ao carregar eventos: {e}")
         return pd.DataFrame()
-    conn = sqlite3.connect("eventos.db")
-    df = pd.read_sql_query("SELECT * FROM eventos", conn)
-    conn.close()
-    return df
+    
+
+# ---------------- CONEXÃO E EVENTOS ----------------
+@st.cache_data(show_spinner=False)
+def carregar_eventos():
+    try:
+        conn = get_connection()
+        df = pd.read_sql_query("SELECT * FROM eventos", conn)
+        conn.close()
+        return df
+    except Exception as e:
+        st.error(f"Erro ao carregar eventos: {e}")
+        return pd.DataFrame()
 
 df = carregar_eventos()
 if df.empty:
     st.warning("Nenhum evento encontrado no banco de dados ainda.")
     st.stop()
 
-# --------------------- FILTROS ---------------------
+# ---------------- FILTROS ----------------
 st.sidebar.header("🔍 Filtros")
-df["data_envio"] = pd.to_datetime(df["data_envio"], errors="coerce")
+df["data_envio"] = pd.to_datetime(df.get("data_envio", df.get("data_hora", datetime.now())), errors="coerce")
 clientes = df["email"].dropna().unique()
-dominios = df["url"].dropna().unique()
+dominios = df["url_origem"].dropna().unique() if "url_origem" in df.columns else []
 
 email_cliente = st.sidebar.selectbox("Cliente (email)", options=clientes)
-dominio = st.sidebar.selectbox("Domínio", options=dominios)
+dominio = st.sidebar.selectbox("Domínio", options=dominios) if dominios.any() else ""
 data_min = df["data_envio"].min().date()
 data_max = df["data_envio"].max().date()
 
@@ -94,7 +110,7 @@ data_fim = st.sidebar.date_input("Data Fim", value=data_max, min_value=data_min,
 
 filtro = (
     (df["email"] == email_cliente) &
-    (df["url"] == dominio) &
+    (df["url_origem"] == dominio) &
     (df["data_envio"].dt.date >= data_inicio) &
     (df["data_envio"].dt.date <= data_fim)
 )
@@ -247,7 +263,7 @@ def mostrar_logs():
                 st.json(falha)
                 if st.button(f"🔁 Reenviar Evento {i+1}"):
                     evento = EventoConversao(
-                        email=None, telefone=None, nome=None, user_id=None,
+                        email=None, telefone=None, nome=None, user_id=None, 
                         ip=None, user_agent=None, url=None, referrer=None,
                         pagina_destino=None, botao_clicado=None,
                         gclid=falha.get("gclid"), fbclid=falha.get("fbclid"),
@@ -277,11 +293,11 @@ def mostrar_credenciais(email_cliente):
     st.subheader("🔐 Cadastro de Credenciais por Plataforma")
 
     # ✅ Alteração: banco certo agora é 'users.db' (não 'eventos.db')
-    conn = sqlite3.connect("users.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     # Busca o user_id com base no e-mail logado
-    cursor.execute("SELECT id FROM users WHERE email = ?", (email_cliente,))
+    cursor.execute("SELECT id FROM users WHERE email = %s", (email_cliente,))
     user = cursor.fetchone()
     if not user:
         st.error("Usuário não encontrado na tabela 'users'.")
@@ -311,19 +327,33 @@ def mostrar_credenciais(email_cliente):
                 if valor.strip():
                     cursor.execute("""
                         INSERT INTO credenciais (user_id, plataforma, chave, valor)
-                        VALUES (?, ?, ?, ?)
+                        VALUES (%s, %s, %s, %s)
                     """, (user_id, plataforma, chave, valor))
             conn.commit()
             st.success(f"✅ Credenciais da plataforma {plataforma} salvas com sucesso!")
 
-    # ------------------ EDIÇÃO INLINE DAS CREDENCIAIS ------------------
-    st.divider()
-    st.subheader("✏️ Editar Credenciais Existentes")
+   
+
+# ------------------ EDIÇÃO INLINE DAS CREDENCIAIS ------------------
+st.divider()
+st.subheader("✏️ Editar Credenciais Existentes")
+
+with get_connection() as conn:
+    cursor = conn.cursor()
+
+    # Busca user_id pela tabela users
+    cursor.execute("SELECT id FROM users WHERE email = %s", (email_cliente,))
+    user = cursor.fetchone()
+    if not user:
+        st.error("Usuário não encontrado na tabela 'users'.")
+        st.stop()
+
+    user_id = user[0]
 
     df_edit = pd.read_sql_query("""
         SELECT id, plataforma, chave, valor
         FROM credenciais
-        WHERE user_id = ?
+        WHERE user_id = %s
     """, conn, params=(user_id,))
 
     if df_edit.empty:
@@ -339,24 +369,13 @@ def mostrar_credenciais(email_cliente):
                 if st.button("💾 Salvar alteração", key=f"salvar_{row['id']}"):
                     cursor.execute("""
                         UPDATE credenciais
-                        SET valor = ?
-                        WHERE id = ?
+                        SET valor = %s
+                        WHERE id = %s
                     """, (novo_valor, row['id']))
                     conn.commit()
                     st.success("Credencial atualizada com sucesso.")
 
-    conn.close()
-
-
-    # Busca user_id pela tabela users
-    cursor.execute("SELECT id FROM users WHERE email = ?", (email_cliente,))
-    user = cursor.fetchone()
-    if not user:
-        st.error("Usuário não encontrado na tabela 'users'.")
-        conn.close()
-        return
-    user_id = user[0]
-
+    # Formulário para nova credencial
     with st.form("form_credenciais"):
         plataforma = st.selectbox("Plataforma", ["google", "meta"])
         chave = st.text_input("Nome da chave")
@@ -366,7 +385,7 @@ def mostrar_credenciais(email_cliente):
         if submit:
             cursor.execute("""
                 INSERT INTO credenciais (user_id, plataforma, chave, valor)
-                VALUES (?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s)
             """, (user_id, plataforma, chave, valor))
             conn.commit()
             st.success(f"Credencial '{chave}' salva com sucesso para {plataforma}!")
@@ -374,14 +393,13 @@ def mostrar_credenciais(email_cliente):
     # Exibe credenciais cadastradas
     st.divider()
     st.subheader("🔎 Credenciais Cadastradas")
+
     df_cred = pd.read_sql_query("""
         SELECT plataforma, chave, '************' AS valor
         FROM credenciais
-        WHERE user_id = ?
+        WHERE user_id = %s
     """, conn, params=(user_id,))
     st.dataframe(df_cred, use_container_width=True)
-
-    conn.close()
 
 # --------------------- EXIBIÇÃO CONDICIONAL ---------------------
 if menu == "📊 Dashboard":

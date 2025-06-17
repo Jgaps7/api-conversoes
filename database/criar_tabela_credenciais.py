@@ -1,22 +1,23 @@
-import sqlite3
+from supabase_conn import get_connection
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-# Caminho do banco
-conn = sqlite3.connect("users.db")
+# Conecta ao Supabase (PostgreSQL)
+conn = get_connection()
 cursor = conn.cursor()
 
-# Criação da tabela de credenciais multiusuário
+# Criação da tabela de usuários
 cursor.execute("""
-CREATE TABLE IF NOT EXISTS credenciais (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    plataforma TEXT NOT NULL CHECK(plataforma IN ('google', 'meta')),
-    chave TEXT NOT NULL,
-    valor TEXT NOT NULL,
-    FOREIGN KEY(user_id) REFERENCES users(id)
-)
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    senha TEXT NOT NULL,
+    nivel TEXT NOT NULL CHECK (nivel IN ('admin', 'comum'))
+);
 """)
+
+print("✅ Tabela 'users' criada com sucesso.")
 
 conn.commit()
 conn.close()
-
-print("✅ Tabela 'credenciais' criada com sucesso.")

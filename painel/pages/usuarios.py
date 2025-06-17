@@ -1,8 +1,13 @@
-import sqlite3
-import pandas as pd
 import streamlit as st
 import hashlib
+import pandas as pd
+from supabase_conn import get_connection
 from auth import requer_login
+from utils.config import get_envio_ativado, set_envio_ativado
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 
 requer_login()
 
@@ -25,31 +30,8 @@ with st.sidebar:
 
 
 # Conecta ao banco
-conn = sqlite3.connect("users.db")
+conn = get_connection()
 cursor = conn.cursor()
-
-# Cria tabela de usuários, se não existir
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE,
-    senha TEXT,
-    nivel TEXT
-)
-""")
-
-# Cria tabela de credenciais, se não existir
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS credenciais (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    plataforma TEXT,
-    chave TEXT,
-    valor TEXT,
-    UNIQUE(user_id, plataforma, chave)
-)
-""")
-conn.commit()
 
 # Função para hashear senhas
 def hash_senha(senha):
@@ -72,15 +54,15 @@ with st.form("form_cadastro"):
 
     if cadastrar:
         try:
-            cursor.execute("INSERT INTO users (email, senha, nivel) VALUES (?, ?, ?)",
+            cursor.execute("INSERT INTO users (email, senha, nivel) VALUES (%s, %s, %s)",
                            (novo_email, hash_senha(nova_senha), novo_nivel))
             conn.commit()
             st.success(f"Usuário {novo_email} cadastrado com sucesso!")
             st.rerun()
-        except sqlite3.IntegrityError:
-            st.error("Este e-mail já está cadastrado.")
+        except Exception:
+            st.error("Erro ao cadastrar usuário. E-mail pode já estar em uso.")
 
-# Edição/Remoção
+# Edição/Remoção    
 st.subheader("✏️ Editar ou ❌ Remover Usuários e Gerenciar Credenciais")
 for _, usuario in df_usuarios.iterrows():
     with st.expander(f"👤 {usuario['email']}"):
@@ -91,17 +73,17 @@ for _, usuario in df_usuarios.iterrows():
 
         if col1.button("Salvar alterações", key=f"salvar_{usuario['id']}"):
             if nova_senha:
-                cursor.execute("UPDATE users SET senha = ?, nivel = ? WHERE id = ?",
+                cursor.execute("UPDATE users SET senha = %s, nivel = %s WHERE id = %s",
                                (hash_senha(nova_senha), novo_nivel, usuario["id"]))
             else:
-                cursor.execute("UPDATE users SET nivel = ? WHERE id = ?",
+                cursor.execute("UPDATE users SET nivel = %s WHERE id = %s",
                                (novo_nivel, usuario["id"]))
             conn.commit()
             st.success("Usuário atualizado com sucesso.")
             st.rerun()
 
         if col2.button("❌ Remover usuário", key=f"remover_{usuario['id']}"):
-            cursor.execute("DELETE FROM users WHERE id = ?", (usuario["id"],))
+            cursor.execute("DELETE FROM users WHERE id = %s", (usuario["id"],))
             conn.commit()
             st.warning("Usuário removido.")
             st.rerun()
@@ -113,12 +95,12 @@ for _, usuario in df_usuarios.iterrows():
         if st.button("💾 Salvar credenciais Meta", key=f"meta_save_{usuario['id']}"):
             cursor.execute("""
                 INSERT INTO credenciais (user_id, plataforma, chave, valor)
-                VALUES (?, 'meta', 'PIXEL_ID', ?)
+                VALUES (%s, 'meta', 'PIXEL_ID', %s)
                 ON CONFLICT(user_id, plataforma, chave) DO UPDATE SET valor = excluded.valor
             """, (usuario["id"], meta_pixel_id))
             cursor.execute("""
                 INSERT INTO credenciais (user_id, plataforma, chave, valor)
-                VALUES (?, 'meta', 'ACCESS_TOKEN', ?)
+                VALUES (%s, 'meta', 'ACCESS_TOKEN', %s)
                 ON CONFLICT(user_id, plataforma, chave) DO UPDATE SET valor = excluded.valor
             """, (usuario["id"], meta_token))
             conn.commit()
@@ -142,7 +124,7 @@ for _, usuario in df_usuarios.iterrows():
             for chave, valor in credenciais_google:
                 cursor.execute("""
                     INSERT INTO credenciais (user_id, plataforma, chave, valor)
-                    VALUES (?, 'google', ?, ?)
+                    VALUES (%s, 'google', %s, %s)
                     ON CONFLICT(user_id, plataforma, chave) DO UPDATE SET valor = excluded.valor
                 """, (usuario["id"], chave, valor))
             conn.commit()

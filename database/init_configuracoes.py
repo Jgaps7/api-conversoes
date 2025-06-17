@@ -1,22 +1,32 @@
-import sqlite3
+from supabase_conn import get_connection
+import psycopg2
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-# Caminho para o banco de dados
-conn = sqlite3.connect("users.db")
+
+# Conecta ao banco Supabase
+conn = get_connection()
 cursor = conn.cursor()
 
-# Criação da tabela de configurações globais (caso não exista)
+# Criação da tabela de configurações globais
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS configuracoes (
     id INTEGER PRIMARY KEY CHECK (id = 1),
-    envio_ativado INTEGER NOT NULL CHECK (envio_ativado IN (0, 1))
-)
+    envio_ativado BOOLEAN NOT NULL
+);
 """)
 
-# Garante que só existe uma linha com ID = 1
+# Verifica se já existe a linha única com id = 1
 cursor.execute("SELECT COUNT(*) FROM configuracoes WHERE id = 1")
 if cursor.fetchone()[0] == 0:
-    cursor.execute("INSERT INTO configuracoes (id, envio_ativado) VALUES (1, 0)")
+    cursor.execute("""
+        INSERT INTO configuracoes (id, envio_ativado)
+        VALUES (1, FALSE)
+    """)
     print("🔧 Flag de envio inicializada como DESATIVADA.")
+else:
+    print("ℹ️ Flag de envio já configurada.")
 
 conn.commit()
 conn.close()

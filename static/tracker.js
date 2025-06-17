@@ -1,7 +1,7 @@
 // tracker.js
 (function () {
   document.addEventListener("DOMContentLoaded", function () {
-    const endpoint = "https://suaapi.com/conversao"; // Substituir pela URL da sua API
+    const endpoint = "https://painel-conversoes.onrender.com/"; // Substituir pela URL da sua API
 
     let nome = "";
     let email = "";

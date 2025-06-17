@@ -1,13 +1,18 @@
-import sqlite3
+from supabase_conn import get_connection
+import psycopg2
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-# Conecta (ou cria) o banco de dados
-conn = sqlite3.connect("eventos.db")
+
+# Conecta ao banco PostgreSQL (Supabase)
+conn = get_connection()
 cursor = conn.cursor()
 
-# Cria ou atualiza a tabela de eventos com todos os campos necessários
+# Criação da tabela 'eventos'
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS eventos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     
     -- Identificação do lead
     nome TEXT,
@@ -41,11 +46,11 @@ CREATE TABLE IF NOT EXISTS eventos (
 
     -- Consentimento e status de envio
     consentimento TEXT DEFAULT 'não informado',
-    enviado_google INTEGER DEFAULT 0,
-    enviado_meta INTEGER DEFAULT 0
-)
+    enviado_google BOOLEAN DEFAULT FALSE,
+    enviado_meta BOOLEAN DEFAULT FALSE
+);
 """)
 
-# Confirma e fecha conexão
 conn.commit()
 conn.close()
+print("✅ Tabela 'eventos' criada com sucesso no PostgreSQL.")

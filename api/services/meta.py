@@ -1,10 +1,13 @@
 import time
 import hashlib
 import httpx
-import sqlite3
+from supabase_conn import get_connection
 from api.event import EventoConversao
 from utils.logger import log_sucesso_meta, log_erro_meta
 from streamlit.runtime.scriptrunner import get_script_run_ctx
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 
 def hash_dado(valor):
@@ -16,7 +19,7 @@ def hash_dado(valor):
 
 def carregar_credenciais_meta(email_usuario):
     """Busca as credenciais da conta Meta Ads do usuário no banco de dados."""
-    conn = sqlite3.connect("users.db")
+    conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
         SELECT chave, valor FROM credenciais 

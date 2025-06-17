@@ -1,28 +1,28 @@
 import os
 import json
-import sqlite3
 import asyncio
 import pandas as pd
 import streamlit as st
 import plotly.express as px
 import sys
-import os
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+# Ajuste do path para importar corretamente
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+
+
 from api.event import EventoConversao
-
 from api.services.google import enviar_para_google
 from api.services.meta import enviar_para_meta
 from painel.auth import requer_login
+from supabase_conn import get_connection
 
 requer_login()
-
-
 
 # --------------------- CONFIGURAÇÃO ---------------------
 st.set_page_config(page_title="Painel de Conversões", page_icon="📊", layout="wide")
 st.title("📊 Painel de Monitoramento de Eventos")
 
+# Botão de logout
 with st.sidebar:
     if st.session_state.get("autenticado"):
         if st.button("🚪 Sair"):
@@ -30,30 +30,28 @@ with st.sidebar:
             st.success("Logout realizado com sucesso.")
             st.rerun()
 
-
-# Proteção: só permite acesso se estiver logado
+# Proteção
 if not st.session_state.get("autenticado"):
     st.error("⛔ Acesso não autorizado. Faça login primeiro.")
     st.stop()
 
-
 # --------------------- BANCO DE DADOS ---------------------
 @st.cache_data(show_spinner=False)
 def carregar_eventos():
-    if not os.path.exists("eventos.db"):
+    try:
+        conn = get_connection()
+        df = pd.read_sql("SELECT * FROM eventos", conn)
+        conn.close()
+        return df
+    except Exception as e:
+        st.error(f"Erro ao carregar dados do banco: {e}")
         return pd.DataFrame()
-    conn = sqlite3.connect("eventos.db")
-    df = pd.read_sql_query("SELECT * FROM eventos", conn)
-    conn.close()
-    return df
-
 
 df = carregar_eventos()
 
 if df.empty:
     st.warning("Nenhum evento encontrado no banco de dados ainda.")
     st.stop()
-
 
 # --------------------- GRÁFICOS E MÉTRICAS ---------------------
 st.subheader("📈 Resumo Geral")
@@ -82,14 +80,12 @@ st.dataframe(df.sort_values(by="id", ascending=False).head(10), use_container_wi
 
 st.divider()
 
-
 # --------------------- LOGS DE ERRO ---------------------
 def carregar_logs(caminho_log):
     if not os.path.exists(caminho_log):
         return []
     with open(caminho_log, "r", encoding="utf-8") as f:
         return [json.loads(linha.strip()) for linha in f.readlines()]
-
 
 st.subheader("❌ Eventos com Falha de Envio")
 

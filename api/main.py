@@ -2,7 +2,10 @@ from fastapi import FastAPI, HTTPException, Header, Request
 from pydantic import BaseModel
 from typing import Optional
 from dotenv import load_dotenv
-import sqlite3
+from supabase_conn import get_connection
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -58,7 +61,7 @@ class EventoConversao(BaseModel):
 
 # Função de validação da API Key
 def validar_api_key(email: str, plataforma: str, api_key: str):
-    conn = sqlite3.connect("users.db")
+    conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
         SELECT 1 FROM credenciais 

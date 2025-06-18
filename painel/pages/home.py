@@ -110,7 +110,7 @@ dominios = df["url_origem"].dropna().unique() if "url_origem" in df.columns else
 campanhas = df["campanha"].dropna().unique() if "campanha" in df.columns else []
 
 email_cliente = st.sidebar.selectbox("Cliente (email)", options=clientes)
-dominio = st.sidebar.selectbox("Domínio", options=dominios) if dominios.any() else ""
+dominio = st.sidebar.selectbox("Domínio", options=dominios) if len(dominios) > 0 else ""
 campanha = st.sidebar.selectbox("Campanha", options=["Todas"] + list(campanhas))
 
 data_min = df["data_envio"].min().date()
@@ -346,14 +346,12 @@ def mostrar_credenciais(email_cliente):
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Busca o user_id com base no e-mail logado
-    cursor.execute("SELECT id FROM users WHERE email = %s", (email_cliente,))
-    user = cursor.fetchone()
-    if not user:
-        st.error("Usuário não encontrado na tabela 'users'.")
-        conn.close()
-        return
-    user_id = user[0]
+    # Lista todos os usuários e permite selecionar o cliente
+    usuarios = pd.read_sql_query("SELECT id, email FROM users", conn)
+    selecionado = st.selectbox("👤 Selecione o cliente", usuarios["email"].tolist())
+    
+    # Recupera o user_id com base no email selecionado
+    user_id = usuarios[usuarios["email"] == selecionado]["id"].values[0]
 
     # ✅ Campos dinâmicos por plataforma
     campos_por_plataforma = {
@@ -378,9 +376,10 @@ def mostrar_credenciais(email_cliente):
                     cursor.execute("""
                         INSERT INTO credenciais (user_id, plataforma, chave, valor)
                         VALUES (%s, %s, %s, %s)
+                        ON CONFLICT(user_id, plataforma, chave) DO UPDATE SET valor = excluded.valor
                     """, (user_id, plataforma, chave, valor))
             conn.commit()
-            st.success(f"✅ Credenciais da plataforma {plataforma} salvas com sucesso!")
+            st.success(f"✅ Credenciais salvas com sucesso para {selecionado} – plataforma {plataforma}")
 
    
 

@@ -128,6 +128,11 @@ else:
 data_inicio = st.sidebar.date_input("📅 Data Início", value=data_min, min_value=data_min, max_value=data_max)
 data_fim = st.sidebar.date_input("📅 Data Fim", value=data_max, min_value=data_min, max_value=data_max)
 
+# ✅ Verificação obrigatória para existência da coluna
+if "url_origem" not in df.columns:
+    st.error("❌ A coluna 'url_origem' não foi encontrada nos dados. Nenhum evento foi registrado ainda ou a estrutura está incorreta.")
+    st.stop()
+
 # 🔹 Filtro de dados com base nos campos selecionados
 filtro = (
     (df["email"] == email_cliente) &
@@ -138,6 +143,7 @@ filtro = (
 
 if campanha != "Todas":
     filtro &= (df["campanha"] == campanha)
+
 
 # 🔹 DataFrame final filtrado
 df_filtrado = df[filtro]

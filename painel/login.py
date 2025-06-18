@@ -25,8 +25,10 @@ def main():
             st.session_state["autenticado"] = True
             st.session_state["email"] = email
             st.session_state["nivel"] = user[3]  # coluna 'nivel'
+            st.session_state["user_id"] = user[0]  # ID do usuário
             st.success("✅ Login realizado com sucesso!")
-            st.switch_page("pages/home.py")  # Certifique-se que esse arquivo está na pasta correta
+            st.switch_page("pages/home.py")
+
         else:
             st.error("❌ Email ou senha inválidos.")
 
@@ -47,12 +49,13 @@ def main():
                 cursor = conn.cursor()
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS users (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        id SERIAL PRIMARY KEY,
                         email TEXT UNIQUE,
                         senha TEXT,
                         nivel TEXT
                     )
                 """)
+
                 cursor.execute("""
                     INSERT INTO users (email, senha, nivel)
                     VALUES (%s, %s, %s)

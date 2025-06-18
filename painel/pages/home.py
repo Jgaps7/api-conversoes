@@ -90,9 +90,16 @@ def carregar_eventos():
         return pd.DataFrame()
 
 df = carregar_eventos()
-if df.empty:
-    st.warning("Nenhum evento encontrado no banco de dados ainda.")
-    st.stop()
+if st.session_state["nivel"] != "admin":
+    df = df[df["user_id"] == st.session_state["user_id"]]
+
+
+# 🔐 Filtro de segurança: restringe visualização para o próprio cliente
+user_id_atual = st.session_state.get("user_id")
+nivel = st.session_state.get("nivel")
+
+if nivel != "admin":
+    df = df[df["user_id"] == user_id_atual]
 
 # ---------------- FILTROS ----------------
 st.sidebar.header("🔍 Filtros")

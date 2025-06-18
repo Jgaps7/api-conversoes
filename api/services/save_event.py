@@ -33,9 +33,10 @@ def salvar_evento(evento: EventoConversao):
             cidade,
             regiao,
             pais,
+            campanha,
             evento,
             origem
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ''', (
         evento.nome,
         evento.email,
@@ -54,6 +55,7 @@ def salvar_evento(evento: EventoConversao):
         evento.cidade,
         evento.regiao,
         evento.pais,
+        evento.campanha,
         evento.evento,
         evento.origem
     ))

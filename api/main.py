@@ -56,6 +56,7 @@ class EventoConversao(BaseModel):
     cidade: Optional[str] = None
     regiao: Optional[str] = None
     pais: Optional[str] = None
+    campanha: Optional[str] = None
     origem: str
     evento: str
 

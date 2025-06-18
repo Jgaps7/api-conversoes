@@ -104,24 +104,43 @@ if nivel != "admin":
 # ---------------- FILTROS ----------------
 st.sidebar.header("🔍 Filtros")
 df["data_envio"] = pd.to_datetime(df.get("data_envio", df.get("data_hora", datetime.now())), errors="coerce")
+
 clientes = df["email"].dropna().unique()
 dominios = df["url_origem"].dropna().unique() if "url_origem" in df.columns else []
+campanhas = df["campanha"].dropna().unique() if "campanha" in df.columns else []
 
 email_cliente = st.sidebar.selectbox("Cliente (email)", options=clientes)
 dominio = st.sidebar.selectbox("Domínio", options=dominios) if dominios.any() else ""
+campanha = st.sidebar.selectbox("Campanha", options=["Todas"] + list(campanhas))
+
 data_min = df["data_envio"].min().date()
 data_max = df["data_envio"].max().date()
 
 data_inicio = st.sidebar.date_input("Data Início", value=data_min, min_value=data_min, max_value=data_max)
 data_fim = st.sidebar.date_input("Data Fim", value=data_max, min_value=data_min, max_value=data_max)
 
+# Filtro condicional
 filtro = (
     (df["email"] == email_cliente) &
     (df["url_origem"] == dominio) &
     (df["data_envio"].dt.date >= data_inicio) &
     (df["data_envio"].dt.date <= data_fim)
 )
+
+if campanha != "Todas":
+    filtro &= (df["campanha"] == campanha)
+
 df_filtrado = df[filtro]
+
+# ---------------- DESTAQUE DE CAMPANHA ----------------
+if "campanha" in df_filtrado.columns and not df_filtrado.empty:
+    campanhas_ativas = df_filtrado["campanha"].dropna().unique()
+    if len(campanhas_ativas) == 1:
+        st.info(f"📣 Campanha Ativa: **{campanhas_ativas[0]}**")
+    elif len(campanhas_ativas) > 1:
+        st.info(f"📣 Campanhas Ativas: {', '.join(campanhas_ativas)}")
+
+
 if df_filtrado.empty:
     st.warning("Nenhum evento encontrado com os filtros selecionados.")
     st.stop()
@@ -218,6 +237,18 @@ def mostrar_dashboard(df_filtrado):
         fig2 = px.histogram(df_filtrado, x="evento", color="origem", title="Distribuição por Tipo de Evento")
         st.plotly_chart(fig2, use_container_width=True)
 
+    # 📊 Novo: Distribuição por campanha
+    if "campanha" in df_filtrado.columns:
+        st.subheader("Campanhas Ativadas")
+        fig3 = px.histogram(
+            df_filtrado,
+            x="campanha",
+            color="origem",
+            title="Eventos por Campanha",
+            barmode="group"
+        )
+        st.plotly_chart(fig3, use_container_width=True)
+
     # 🕒 Tabela com os últimos registros
     st.subheader("🕒 Últimos Eventos Registrados")
     st.dataframe(df_filtrado.sort_values(by="id", ascending=False).head(10), use_container_width=True)
@@ -228,6 +259,7 @@ def mostrar_dashboard(df_filtrado):
     # ✅ Novo gráfico: Eventos por data (ETAPA 2.2)
     if "data_envio" in df_filtrado.columns:
         df_filtrado["data_envio_dia"] = df_filtrado["data_envio"].dt.date
+        
         fig_dia = px.histogram(
             df_filtrado,
             x="data_envio_dia",
@@ -237,6 +269,17 @@ def mostrar_dashboard(df_filtrado):
             labels={"data_envio_dia": "Data"}
         )
         st.plotly_chart(fig_dia, use_container_width=True)
+
+        # 🔍 Eventos por dia por campanha
+        if "campanha" in df_filtrado.columns:
+            fig_camp_dia = px.histogram(
+                df_filtrado,
+                x="data_envio_dia",
+                color="campanha",
+                title="Eventos por Dia por Campanha",
+                barmode="group"
+            )
+            st.plotly_chart(fig_camp_dia, use_container_width=True)
     else:
         st.info("Coluna 'data_envio' não encontrada.")
 

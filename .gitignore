@@ -1,6 +1,8 @@
 __pycache__/
 *.pyc
-# *.db
 .env
 logs/
 .vscode/
+*.db
+*token*
+*.csv

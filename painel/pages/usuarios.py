@@ -109,67 +109,66 @@ for _, usuario in df_usuarios.iterrows():
             except Exception as e:
                 st.error(f"Erro ao remover usuário: {str(e)}")
 
-
         # 📌 Credenciais da Meta
-st.markdown("**🔵 Credenciais Meta Ads**")
-meta_pixel_id = st.text_input("PIXEL_ID", key=f"meta_pixel_{usuario['id']}")
-meta_token = st.text_input("ACCESS_TOKEN", key=f"meta_token_{usuario['id']}")
+        st.markdown("**🔵 Credenciais Meta Ads**")
+        meta_pixel_id = st.text_input("PIXEL_ID", key=f"meta_pixel_{usuario['id']}")
+        meta_token = st.text_input("ACCESS_TOKEN", key=f"meta_token_{usuario['id']}")
 
-if st.button("💾 Salvar credenciais Meta", key=f"meta_save_{usuario['id']}"):
-    if not meta_pixel_id.strip() or not meta_token.strip():
-        st.error("❌ Preencha todos os campos antes de salvar.")
-    else:
-        try:
-            cursor.execute("""
-                INSERT INTO credenciais (user_id, plataforma, chave, valor)
-                VALUES (%s, 'meta', 'PIXEL_ID', %s)
-                ON CONFLICT(user_id, plataforma, chave) DO UPDATE SET valor = excluded.valor
-            """, (usuario["id"], meta_pixel_id.strip()))
+        if st.button("💾 Salvar credenciais Meta", key=f"meta_save_{usuario['id']}"):
+            if not meta_pixel_id.strip() or not meta_token.strip():
+                st.error("❌ Preencha todos os campos antes de salvar.")
+            else:
+                try:
+                    cursor.execute("""
+                        INSERT INTO credenciais (user_id, plataforma, chave, valor)
+                        VALUES (%s, 'meta', 'PIXEL_ID', %s)
+                        ON CONFLICT(user_id, plataforma, chave) DO UPDATE SET valor = excluded.valor
+                    """, (usuario["id"], meta_pixel_id.strip()))
 
-            cursor.execute("""
-                INSERT INTO credenciais (user_id, plataforma, chave, valor)
-                VALUES (%s, 'meta', 'ACCESS_TOKEN', %s)
-                ON CONFLICT(user_id, plataforma, chave) DO UPDATE SET valor = excluded.valor
-            """, (usuario["id"], meta_token.strip()))
+                    cursor.execute("""
+                        INSERT INTO credenciais (user_id, plataforma, chave, valor)
+                        VALUES (%s, 'meta', 'ACCESS_TOKEN', %s)
+                        ON CONFLICT(user_id, plataforma, chave) DO UPDATE SET valor = excluded.valor
+                    """, (usuario["id"], meta_token.strip()))
 
-            conn.commit()
-            st.success("✅ Credenciais da Meta salvas com sucesso!")
-        except Exception as e:
-            st.error(f"Erro ao salvar credenciais: {str(e)}")
+                    conn.commit()
+                    st.success("✅ Credenciais da Meta salvas com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro ao salvar credenciais: {str(e)}")
 
+        # 📌 Credenciais do Google Ads
+        st.markdown("**🟢 Credenciais Google Ads**")
+        google_client_id = st.text_input("CLIENT_ID", key=f"google_client_{usuario['id']}")
+        google_refresh_token = st.text_input("REFRESH_TOKEN", key=f"google_refresh_{usuario['id']}")
+        google_dev_token = st.text_input("DEVELOPER_TOKEN", key=f"google_dev_{usuario['id']}")
+        google_cust_id = st.text_input("CUSTOMER_ID", key=f"google_cust_{usuario['id']}")
+        google_conv_action_id = st.text_input("CONVERSION_ACTION_ID", key=f"google_conv_{usuario['id']}")
 
-       # 📌 Credenciais do Google Ads
-st.markdown("**🟢 Credenciais Google Ads**")
-google_client_id = st.text_input("CLIENT_ID", key=f"google_client_{usuario['id']}")
-google_refresh_token = st.text_input("REFRESH_TOKEN", key=f"google_refresh_{usuario['id']}")
-google_dev_token = st.text_input("DEVELOPER_TOKEN", key=f"google_dev_{usuario['id']}")
-google_cust_id = st.text_input("CUSTOMER_ID", key=f"google_cust_{usuario['id']}")
-google_conv_action_id = st.text_input("CONVERSION_ACTION_ID", key=f"google_conv_{usuario['id']}")
+        if st.button("💾 Salvar credenciais Google", key=f"google_save_{usuario['id']}"):
+            credenciais_google = [
+                ("CLIENT_ID", google_client_id),
+                ("REFRESH_TOKEN", google_refresh_token),
+                ("DEVELOPER_TOKEN", google_dev_token),
+                ("CUSTOMER_ID", google_cust_id),
+                ("CONVERSION_ACTION_ID", google_conv_action_id),
+            ]
 
-if st.button("💾 Salvar credenciais Google", key=f"google_save_{usuario['id']}"):
-    credenciais_google = [
-        ("CLIENT_ID", google_client_id),
-        ("REFRESH_TOKEN", google_refresh_token),
-        ("DEVELOPER_TOKEN", google_dev_token),
-        ("CUSTOMER_ID", google_cust_id),
-        ("CONVERSION_ACTION_ID", google_conv_action_id),
-    ]
+            campos_vazios = [chave for chave, valor in credenciais_google if not valor.strip()]
+            if campos_vazios:
+                st.error(f"❌ Preencha todos os campos: {', '.join(campos_vazios)}")
+            else:
+                try:
+                    for chave, valor in credenciais_google:
+                        cursor.execute("""
+                            INSERT INTO credenciais (user_id, plataforma, chave, valor)
+                            VALUES (%s, 'google', %s, %s)
+                            ON CONFLICT(user_id, plataforma, chave) DO UPDATE SET valor = excluded.valor
+                        """, (usuario["id"], chave, valor.strip()))
+                    conn.commit()
+                    st.success("✅ Credenciais do Google salvas com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro ao salvar credenciais do Google: {str(e)}")
 
-    campos_vazios = [chave for chave, valor in credenciais_google if not valor.strip()]
-    if campos_vazios:
-        st.error(f"❌ Preencha todos os campos: {', '.join(campos_vazios)}")
-    else:
-        try:
-            for chave, valor in credenciais_google:
-                cursor.execute("""
-                    INSERT INTO credenciais (user_id, plataforma, chave, valor)
-                    VALUES (%s, 'google', %s, %s)
-                    ON CONFLICT(user_id, plataforma, chave) DO UPDATE SET valor = excluded.valor
-                """, (usuario["id"], chave, valor.strip()))
-            conn.commit()
-            st.success("✅ Credenciais do Google salvas com sucesso!")
-        except Exception as e:
-            st.error(f"Erro ao salvar credenciais do Google: {str(e)}")
 
 # ------------------- CONTROLE GLOBAL DE ENVIO DE EVENTOS -------------------
 from utils.config import get_envio_ativado, set_envio_ativado

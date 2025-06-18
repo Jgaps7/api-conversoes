@@ -103,23 +103,32 @@ if nivel != "admin":
 
 # ---------------- FILTROS ----------------
 st.sidebar.header("🔍 Filtros")
+
+# 🔹 Conversão segura da coluna de data
 df["data_envio"] = pd.to_datetime(df.get("data_envio", df.get("data_hora", datetime.now())), errors="coerce")
 
+# 🔹 Opções únicas para filtros
 clientes = df["email"].dropna().unique()
 dominios = df["url_origem"].dropna().unique() if "url_origem" in df.columns else []
 campanhas = df["campanha"].dropna().unique() if "campanha" in df.columns else []
 
-email_cliente = st.sidebar.selectbox("Cliente (email)", options=clientes)
-dominio = st.sidebar.selectbox("Domínio", options=dominios) if len(dominios) > 0 else ""
-campanha = st.sidebar.selectbox("Campanha", options=["Todas"] + list(campanhas))
+# 🔹 Filtros interativos na sidebar
+email_cliente = st.sidebar.selectbox("👤 Cliente (email)", options=clientes)
+dominio = st.sidebar.selectbox("🌐 Domínio", options=dominios) if len(dominios) > 0 else ""
+campanha = st.sidebar.selectbox("📣 Campanha", options=["Todas"] + list(campanhas))
 
-data_min = df["data_envio"].min().date()
-data_max = df["data_envio"].max().date()
+# 🔹 Datas (com fallback seguro para hoje se não houver dados)
+if df["data_envio"].notna().any():
+    data_min = df["data_envio"].min().date()
+    data_max = df["data_envio"].max().date()
+else:
+    hoje = datetime.today().date()
+    data_min = data_max = hoje
 
-data_inicio = st.sidebar.date_input("Data Início", value=data_min, min_value=data_min, max_value=data_max)
-data_fim = st.sidebar.date_input("Data Fim", value=data_max, min_value=data_min, max_value=data_max)
+data_inicio = st.sidebar.date_input("📅 Data Início", value=data_min, min_value=data_min, max_value=data_max)
+data_fim = st.sidebar.date_input("📅 Data Fim", value=data_max, min_value=data_min, max_value=data_max)
 
-# Filtro condicional
+# 🔹 Filtro de dados com base nos campos selecionados
 filtro = (
     (df["email"] == email_cliente) &
     (df["url_origem"] == dominio) &
@@ -130,7 +139,9 @@ filtro = (
 if campanha != "Todas":
     filtro &= (df["campanha"] == campanha)
 
+# 🔹 DataFrame final filtrado
 df_filtrado = df[filtro]
+
 
 # ---------------- DESTAQUE DE CAMPANHA ----------------
 if "campanha" in df_filtrado.columns and not df_filtrado.empty:

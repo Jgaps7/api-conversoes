@@ -59,6 +59,8 @@ class EventoConversao(BaseModel):
     campanha: Optional[str] = None
     origem: str
     evento: str
+    visitor_id: Optional[str] = None  
+    consentimento: Optional[bool] = None  
 
 # Função de validação da API Key
 def validar_api_key(email: str, plataforma: str, api_key: str):

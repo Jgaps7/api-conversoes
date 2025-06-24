@@ -4,79 +4,81 @@ import httpx
 from supabase_conn import get_connection
 from api.event import EventoConversao
 from utils.logger import log_sucesso_meta, log_erro_meta
-from streamlit.runtime.scriptrunner import get_script_run_ctx
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 
 def hash_dado(valor):
-    """Aplica hash SHA-256 exigido pela Meta Ads."""
+    """Aplica hash SHA-256 exigido pela Meta Ads (para email, telefone, nome)."""
     if valor and isinstance(valor, str):
         return hashlib.sha256(valor.strip().lower().encode()).hexdigest()
     return None
 
 
-def carregar_credenciais_meta(email_usuario):
-    """Busca as credenciais da conta Meta Ads do usuário no banco de dados."""
+def carregar_credenciais_meta(user_id):
+    """Busca as credenciais da conta Meta Ads do usuário via user_id."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
         SELECT chave, valor FROM credenciais 
-        WHERE email_usuario = ? AND plataforma = 'meta'
-    """, (email_usuario,))
+        WHERE user_id = %s AND plataforma = 'meta'
+    """, (user_id,))
     dados = dict(cursor.fetchall())
     conn.close()
     return dados
 
 
 async def enviar_para_meta(evento: EventoConversao):
-    """Envia evento de conversão para a Meta Conversions API."""
+    """Envia evento para a Meta Conversions API com dados completos do lead."""
     try:
-        # Recupera e-mail do usuário da sessão ativa
-        ctx = get_script_run_ctx()
-        email_usuario = ctx.session_state.get("email")
+        if not evento.user_id:
+            return {"erro": "user_id não informado no evento."}
 
-        cred = carregar_credenciais_meta(email_usuario)
+        cred = carregar_credenciais_meta(evento.user_id)
 
-        # Validação de credenciais mínimas
+        # ⚠️ Verifica se as credenciais mínimas estão presentes
         if "pixel_id" not in cred or "access_token" not in cred:
-            raise ValueError("Credenciais da Meta ausentes ou incompletas para este usuário.")
+            return {"erro": "Credenciais da Meta ausentes ou incompletas para este usuário."}
 
         pixel_id = cred["pixel_id"]
         access_token = cred["access_token"]
 
-        # Dados do usuário (hash ou identificadores)
+        # 🔐 Dados do usuário para identificação na Meta
         user_data = {k: v for k, v in {
             "em": hash_dado(evento.email),
             "ph": hash_dado(evento.telefone),
             "fn": hash_dado(evento.nome),
             "client_ip_address": evento.ip,
             "client_user_agent": evento.user_agent,
-            "fbc": evento.fbclid,
-            "fbp": evento.user_id,
-            "external_id": getattr(evento, "click_id", None)
+            "fbc": evento.fbc or evento.fbclid,
+            "fbp": evento.fbp or evento.user_id,
+            "external_id": evento.user_id or evento.visitor_id
         }.items() if v is not None}
 
-        # Dados de campanha (utm e referer)
+        # 📊 Dados adicionais de campanha
         custom_data = {k: v for k, v in {
             "utm_source": getattr(evento, "utm_source", None),
             "utm_medium": getattr(evento, "utm_medium", None),
             "utm_campaign": getattr(evento, "utm_campaign", None),
-            "referer": evento.referrer
+            "referer": evento.referrer,
+            "page": evento.pagina_destino,
+            "button": evento.botao_clicado
         }.items() if v is not None}
 
+        # 📦 Payload enviado para a Meta
         payload = {
             "data": [{
                 "event_name": evento.evento,
                 "event_time": int(time.time()),
-                "event_source_url": evento.url or "https://site.com",
+                "event_source_url": evento.url or "https://seusite.com",
                 "action_source": "website",
                 "user_data": user_data,
                 "custom_data": custom_data
             }]
         }
 
+        # Envio da requisição para a Meta CAPI
         url = f"https://graph.facebook.com/v17.0/{pixel_id}/events"
         params = {"access_token": access_token}
 

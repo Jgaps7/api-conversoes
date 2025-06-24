@@ -35,8 +35,10 @@ def salvar_evento(evento: EventoConversao):
             pais,
             campanha,
             evento,
-            origem
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            origem,
+            visitor_id,
+            consentimento
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ''', (
         evento.nome,
         evento.email,
@@ -57,7 +59,9 @@ def salvar_evento(evento: EventoConversao):
         evento.pais,
         evento.campanha,
         evento.evento,
-        evento.origem
+        evento.origem,
+        evento.visitor_id,
+        evento.consentimento
     ))
 
     conn.commit()

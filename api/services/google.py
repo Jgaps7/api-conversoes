@@ -19,7 +19,7 @@ def hash_dado(dado):
     return None
 
 
-def carregar_credenciais_google(email_usuario):
+def carregar_credenciais_google(user_id):
     """
     Busca as credenciais da conta Google Ads vinculadas ao usuário no banco PostgreSQL.
     """
@@ -28,7 +28,7 @@ def carregar_credenciais_google(email_usuario):
     cursor.execute("""
         SELECT chave, valor FROM credenciais 
         WHERE email_usuario = %s AND plataforma = 'google'
-    """, (email_usuario,))
+    """, (user_id,))
 
     dados = dict(cursor.fetchall())
     conn.close()
@@ -40,13 +40,12 @@ async def enviar_para_google(evento: EventoConversao):
     Envia evento de conversão para a API do Google Ads usando o ConversionUploadService.
     """
     try:
-        # Pega o email do usuário logado via contexto de execução do Streamlit
-        from streamlit.runtime.scriptrunner import get_script_run_ctx
-        ctx = get_script_run_ctx()
-        email_usuario = ctx.session_state.get("email")
+        # Verifica se temos um user_id válido
+        if not evento.user_id:
+            return {"erro": "user_id não informado no evento."}
 
         # Carrega credenciais do usuário
-        cred = carregar_credenciais_google(email_usuario)
+        cred = carregar_credenciais_google(evento.user_id)
 
         if not cred:
             return {"erro": "Credenciais do Google não encontradas para este usuário."}
@@ -62,7 +61,7 @@ async def enviar_para_google(evento: EventoConversao):
 
         client = GoogleAdsClient(load_from_dict(config_dict))
 
-        # 🆔 Define o recurso de conversão
+        # ID da conversão configurada no Google Ads
         conversion_action = (
             f"customers/{cred['customer_id']}/conversionActions/{cred['conversion_action_id']}"
         )
@@ -72,7 +71,7 @@ async def enviar_para_google(evento: EventoConversao):
         conversion.conversion_action = conversion_action
         conversion.conversion_date_time = datetime.datetime.now(
             datetime.timezone.utc
-        ).strftime("%Y-%m-%d %H:%M:%S%z")
+        ).strftime("%d-%m-%Y %H:%M:%S%z")
         conversion.conversion_value = 1.0
         conversion.currency_code = "BRL"
 

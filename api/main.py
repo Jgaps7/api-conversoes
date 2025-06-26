@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 from dotenv import load_dotenv
 from supabase_conn import get_connection
+from fastapi.responses import JSONResponse
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
@@ -74,9 +75,9 @@ def validar_api_key(email: str, plataforma: str, api_key: str):
     conn.close()
     return bool(resultado)
 
-# Rota de conversão com verificação + limite de requisição por IP
+# ------------------------- ENDPOINT DE CONVERSÃO -------------------------
 @app.post("/conversao")
-@limiter.limit("100/minute")
+@limiter.limit("100/minute")  # Limita a 100 requisições por minuto por IP
 async def receber_conversao(
     request: Request,
     evento: EventoConversao,
@@ -86,22 +87,33 @@ async def receber_conversao(
         print(f"[EVENTO RECEBIDO] Origem: {evento.origem} | Evento: {evento.evento}")
         log_evento_recebido(evento)
 
+        # Validação da origem
         if evento.origem not in ("google", "meta"):
             raise HTTPException(status_code=400, detail="Origem inválida: use 'google' ou 'meta'.")
 
+        # Verifica existência do header de API Key
         if not x_api_key:
             raise HTTPException(status_code=401, detail="Header 'x-api-key' ausente.")
 
+        # Email é obrigatório para autenticação
         if not evento.email:
             raise HTTPException(status_code=400, detail="Campo 'email' é obrigatório para autenticação.")
 
+        # Validação da API Key vinculada ao usuário
         if not validar_api_key(evento.email, evento.origem, x_api_key):
             raise HTTPException(status_code=403, detail="API Key inválida para esse usuário ou plataforma.")
 
-        salvar_evento(evento)  # sempre salva
+        # Armazena o evento no banco, mesmo se envio estiver desativado
+        salvar_evento(evento)
 
-        # Verifica se o envio está ativado
-        if get_envio_ativado():
+        # ------------------------- NOVO CONTROLE POR USUÁRIO -------------------------
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT envio_ativado FROM users WHERE email = ?", (evento.email,))
+        res = cursor.fetchone()
+        conn.close()
+
+        if res and res[0]:  # envio_ativado = True
             if evento.origem == "google":
                 resultado = await enviar_para_google(evento)
                 if "erro" in resultado:
@@ -118,10 +130,35 @@ async def receber_conversao(
 
             print(f"[EVENTO ENVIADO] Resultado: {resultado}")
             return {"status": "sucesso", "detalhes": resultado}
+
         else:
-            print("[EVENTO RECEBIDO] Envio desativado - armazenado apenas.")
-            return {"status": "recebido", "detalhes": "Envio desativado. Evento armazenado com sucesso."}
+            print("[EVENTO RECEBIDO] Envio desativado para este usuário - armazenado apenas.")
+            return {"status": "recebido", "detalhes": "Envio desativado para este cliente. Evento armazenado com sucesso."}
 
     except Exception as e:
         print(f"[ERRO] {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+
+#Status da API
+@app.get("/status")
+def verificar_status_envio(email: str):
+    """
+    Verifica se o envio de eventos está ativado para o usuário com base no email.
+    """
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT envio_ativado FROM users WHERE email = ?", (email,))
+        resultado = cursor.fetchone()
+        conn.close()
+
+        if resultado is None:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+
+        return JSONResponse(content={
+            "email": email,
+            "envio_ativado": bool(resultado[0])
+        })
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao verificar status: {str(e)}")

@@ -235,3 +235,17 @@ for _, usuario in df_usuarios.iterrows():
             )
             conn.commit()
             st.success(f"✅ Envio de eventos {'ativado' if novo_estado else 'desativado'} para {usuario['email']}")
+
+# ------------------- VISUALIZAÇÃO DAS CREDENCIAIS POR USUÁRIO -------------------
+st.divider()
+st.subheader("🔎 Credenciais Vinculadas por Cliente")
+
+query = """
+    SELECT u.email AS cliente, c.plataforma, c.chave, '************' AS valor
+    FROM credenciais c
+    JOIN users u ON u.id = c.user_id
+    ORDER BY u.email, c.plataforma, c.chave;
+"""
+
+df_credenciais = pd.read_sql_query(query, conn)
+st.dataframe(df_credenciais, use_container_width=True)

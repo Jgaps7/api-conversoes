@@ -13,7 +13,7 @@ from utils.logger import log_sucesso_google, log_erro_google
 
 
 def hash_dado(dado):
-    """Aplica hash SHA-256 ao dado, se ele existir (usado para email/telefone)."""
+    """Aplica hash SHA-256 ao dado, se ele existir (usado para email, telefone, nome, sobrenome)."""
     if dado:
         return hashlib.sha256(dado.strip().lower().encode()).hexdigest()
     return None
@@ -27,9 +27,8 @@ def carregar_credenciais_google(user_id):
     cursor = conn.cursor()
     cursor.execute("""
         SELECT chave, valor FROM credenciais 
-        WHERE email_usuario = %s AND plataforma = 'google'
-    """, (user_id,))
-
+        WHERE user_id = %s AND plataforma = 'google'
+    """, (user_id,))  # ✅ CORRIGIDO: antes usava email_usuario
     dados = dict(cursor.fetchall())
     conn.close()
     return dados
@@ -40,17 +39,13 @@ async def enviar_para_google(evento: EventoConversao):
     Envia evento de conversão para a API do Google Ads usando o ConversionUploadService.
     """
     try:
-        # Verifica se temos um user_id válido
         if not evento.user_id:
             return {"erro": "user_id não informado no evento."}
 
-        # Carrega credenciais do usuário
         cred = carregar_credenciais_google(evento.user_id)
-
         if not cred:
             return {"erro": "Credenciais do Google não encontradas para este usuário."}
 
-        # Monta configuração do cliente Google Ads
         config_dict = {
             "developer_token": cred["developer_token"],
             "client_id": cred["client_id"],
@@ -60,33 +55,37 @@ async def enviar_para_google(evento: EventoConversao):
         }
 
         client = GoogleAdsClient(load_from_dict(config_dict))
-
-        # ID da conversão configurada no Google Ads
         conversion_action = (
             f"customers/{cred['customer_id']}/conversionActions/{cred['conversion_action_id']}"
         )
 
-        # Monta a conversão
         conversion = client.get_type("ClickConversion")
         conversion.conversion_action = conversion_action
         conversion.conversion_date_time = datetime.datetime.now(
             datetime.timezone.utc
-        ).strftime("%d-%m-%Y %H:%M:%S%z")
+        ).strftime("%Y-%m-%d %H:%M:%S%z")
         conversion.conversion_value = 1.0
         conversion.currency_code = "BRL"
 
-        # Define identificador por GCLID ou dados do usuário
         if evento.gclid:
             conversion.gclid = evento.gclid
         else:
             user_identifier = client.get_type("UserIdentifier")
+
             if evento.email:
                 user_identifier.hashed_email = hash_dado(evento.email)
-            elif evento.telefone:
+
+            if evento.telefone:
                 user_identifier.hashed_phone_number = hash_dado(evento.telefone)
+
+            if evento.nome:
+                user_identifier.hashed_first_name = hash_dado(evento.nome)
+
+            if evento.sobrenome:
+                user_identifier.hashed_last_name = hash_dado(evento.sobrenome)
+
             conversion.user_identifiers.append(user_identifier)
 
-        # Envia para a API do Google Ads
         service = client.get_service("ConversionUploadService")
         request = client.get_type("UploadClickConversionsRequest")
         request.customer_id = cred["customer_id"]

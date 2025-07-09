@@ -40,9 +40,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Modelo de dados esperado
 class EventoConversao(BaseModel):
+    nome: Optional[str] = None
+    sobrenome: Optional[str] = None
     email: Optional[str] = None
     telefone: Optional[str] = None
-    nome: Optional[str] = None
     user_id: Optional[str] = None
     ip: Optional[str] = None
     user_agent: Optional[str] = None

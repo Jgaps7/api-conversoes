@@ -8,6 +8,7 @@ class EventoConversao(BaseModel):
     email: Optional[str] = None
     telefone: Optional[str] = None
     nome: Optional[str] = None
+    sobrenome: Optional[str] = None  # ✅ NOVO
     user_id: Optional[str] = None
 
     # Informações técnicas do navegador
@@ -38,3 +39,5 @@ class EventoConversao(BaseModel):
     # Campos obrigatórios
     origem: str  # 'google' ou 'meta'
     evento: str  # exemplo: 'lead', 'purchase', etc.
+    visitor_id: Optional[str] = None
+    consentimento: Optional[bool] = None

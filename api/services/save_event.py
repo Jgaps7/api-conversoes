@@ -1,9 +1,9 @@
 from api.event import EventoConversao
-from supabase_conn import get_connection  
+from supabase_conn import get_connection
+from datetime import datetime
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
-
 
 def salvar_evento(evento: EventoConversao):
     """
@@ -16,13 +16,14 @@ def salvar_evento(evento: EventoConversao):
 
     cursor.execute('''
         INSERT INTO eventos (
+            user_id,
             nome,
+            sobrenome,
             email,
             telefone,
-            user_id,
             ip,
             user_agent,
-            url_origem,
+            url,
             referrer,
             pagina_destino,
             botao_clicado,
@@ -34,16 +35,18 @@ def salvar_evento(evento: EventoConversao):
             regiao,
             pais,
             campanha,
-            evento,
             origem,
+            evento,
             visitor_id,
-            consentimento
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            consentimento,
+            data_envio
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ''', (
+        int(evento.user_id) if evento.user_id else None,
         evento.nome,
+        evento.sobrenome,
         evento.email,
         evento.telefone,
-        evento.user_id,
         evento.ip,
         evento.user_agent,
         evento.url,
@@ -58,10 +61,11 @@ def salvar_evento(evento: EventoConversao):
         evento.regiao,
         evento.pais,
         evento.campanha,
-        evento.evento,
         evento.origem,
+        evento.evento,
         evento.visitor_id,
-        evento.consentimento
+        evento.consentimento,
+        datetime.utcnow()
     ))
 
     conn.commit()

@@ -84,6 +84,9 @@ def carregar_eventos():
         conn = get_connection()
         df = pd.read_sql_query("SELECT * FROM eventos", conn)
         conn.close()
+        # Expande o campo 'dados' (jsonb) em colunas separadas
+        dados_expandido = pd.json_normalize(df["dados"])
+        df = df.drop(columns=["dados"]).join(dados_expandido)
         return df
     except Exception as e:
         st.error(f"Erro ao carregar eventos: {e}")

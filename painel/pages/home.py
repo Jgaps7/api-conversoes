@@ -93,6 +93,7 @@ def carregar_eventos():
         return pd.DataFrame()
 
 df = carregar_eventos()
+print("🧪 Colunas carregadas:", df.columns.tolist())
 if st.session_state["nivel"] != "admin":
     df = df[df["user_id"] == st.session_state["user_id"]]
 

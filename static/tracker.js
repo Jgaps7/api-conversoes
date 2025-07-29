@@ -17,6 +17,9 @@
       document.cookie = `${name}=${value}; path=/; max-age=31536000`;
     }
 
+    if (getCookie('cmplz_banner-status') === 'dismissed') {
+  setCookie('cookie_consent', 'true');
+}
     function gerarIdUnico() {
       const chave = 'visitor_id';
       let id = getCookie(chave);

@@ -1,6 +1,4 @@
-# models/event.py
-
-from pydantic import BaseModel
+from pydantic import BaseModel, Extra
 from typing import Optional
 
 class EventoConversao(BaseModel):
@@ -41,3 +39,6 @@ class EventoConversao(BaseModel):
     evento: str  # exemplo: 'lead', 'purchase', etc.
     visitor_id: Optional[str] = None
     consentimento: Optional[bool] = None
+
+    class Config:
+        extra = Extra.allow  # Permite payloads com campos além dos declarados acima

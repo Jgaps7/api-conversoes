@@ -9,10 +9,18 @@ def salvar_evento(evento: EventoConversao):
     """
     Salva o evento no banco Supabase (PostgreSQL),
     utilizando a tabela 'eventos'.
+    Aceita tanto eventos com user_id quanto eventos anônimos.
     """
 
     conn = get_connection()
     cursor = conn.cursor()
+
+    # Para campos opcionais: usa getattr, None se não existe
+    def _int(val):
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return None
 
     cursor.execute('''
         INSERT INTO eventos (
@@ -42,29 +50,29 @@ def salvar_evento(evento: EventoConversao):
             data_envio
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ''', (
-        int(evento.user_id) if evento.user_id else None,
-        evento.nome,
-        evento.sobrenome,
-        evento.email,
-        evento.telefone,
-        evento.ip,
-        evento.user_agent,
-        evento.url,
-        evento.referrer,
-        evento.pagina_destino,
-        evento.botao_clicado,
-        evento.gclid,
-        evento.fbclid,
-        evento.fbp,
-        evento.fbc,
-        evento.cidade,
-        evento.regiao,
-        evento.pais,
-        evento.campanha,
-        evento.origem,
-        evento.evento,
-        evento.visitor_id,
-        evento.consentimento,
+        _int(getattr(evento, "user_id", None)),
+        getattr(evento, "nome", None),
+        getattr(evento, "sobrenome", None),
+        getattr(evento, "email", None),
+        getattr(evento, "telefone", None),
+        getattr(evento, "ip", None),
+        getattr(evento, "user_agent", None),
+        getattr(evento, "url", None),
+        getattr(evento, "referrer", None),
+        getattr(evento, "pagina_destino", None),
+        getattr(evento, "botao_clicado", None),
+        getattr(evento, "gclid", None),
+        getattr(evento, "fbclid", None),
+        getattr(evento, "fbp", None),
+        getattr(evento, "fbc", None),
+        getattr(evento, "cidade", None),
+        getattr(evento, "regiao", None),
+        getattr(evento, "pais", None),
+        getattr(evento, "campanha", None),
+        getattr(evento, "origem", None),
+        getattr(evento, "evento", None),
+        getattr(evento, "visitor_id", None),
+        getattr(evento, "consentimento", None),
         datetime.utcnow()
     ))
 

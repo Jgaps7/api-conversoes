@@ -6,18 +6,10 @@ from datetime import datetime
 os.makedirs("logs", exist_ok=True)
 
 def gerar_nome_arquivo(base: str) -> str:
-    """
-    Gera nome de arquivo com base na data e nome base.
-    Ex: 2025-05-31_eventos.log
-    """
     data = datetime.utcnow().strftime("%Y-%m-%d")
     return f"{data}_{base}"
 
 def registrar_log(nome_arquivo: str, dados: dict):
-    """
-    Salva uma entrada de log no arquivo desejado na pasta logs/.
-    Cada linha é um JSON separado para facilitar parsing.
-    """
     timestamp = datetime.utcnow().isoformat()
     dados_completos = {"timestamp": timestamp, **dados}
 
@@ -28,42 +20,48 @@ def registrar_log(nome_arquivo: str, dados: dict):
     except Exception as e:
         print(f"[LOGGER] Falha ao salvar log: {e}")
 
+# Função robusta para pegar campos tanto de objeto quanto de dict
+def get_attr(evento, campo, default="não informado"):
+    if isinstance(evento, dict):
+        return evento.get(campo, default)
+    return getattr(evento, campo, default)
+
 # Funções específicas para logs
 
 def log_evento_recebido(evento):
     registrar_log(gerar_nome_arquivo("eventos.log"), {
-        "origem": evento.origem,
-        "evento": evento.evento,
-        "ip": evento.ip or "não informado",
-        "user_agent": evento.user_agent or "não informado",
-        "url": evento.url or "não informado",
+        "origem": get_attr(evento, "origem"),
+        "evento": get_attr(evento, "evento"),
+        "ip": get_attr(evento, "ip"),
+        "user_agent": get_attr(evento, "user_agent"),
+        "url": get_attr(evento, "url"),
     })
 
 def log_sucesso_google(resposta, evento):
     registrar_log(gerar_nome_arquivo("sucesso_google.log"), {
-        "evento": evento.evento,
-        "gclid": evento.gclid or "não informado",
+        "evento": get_attr(evento, "evento"),
+        "gclid": get_attr(evento, "gclid"),
         "resposta": str(resposta),
     })
 
 def log_erro_google(erro, evento):
     registrar_log(gerar_nome_arquivo("erro_google.log"), {
-        "evento": evento.evento,
-        "gclid": evento.gclid or "não informado",
+        "evento": get_attr(evento, "evento"),
+        "gclid": get_attr(evento, "gclid"),
         "erro": str(erro),
     })
 
 def log_sucesso_meta(resposta, evento):
     registrar_log(gerar_nome_arquivo("sucesso_meta.log"), {
-        "evento": evento.evento,
-        "fbclid": evento.fbclid or "não informado",
+        "evento": get_attr(evento, "evento"),
+        "fbclid": get_attr(evento, "fbclid"),
         "resposta": str(resposta),
     })
 
 def log_erro_meta(erro, evento):
     registrar_log(gerar_nome_arquivo("erro_meta.log"), {
-        "evento": evento.evento,
-        "fbclid": evento.fbclid or "não informado",
+        "evento": get_attr(evento, "evento"),
+        "fbclid": get_attr(evento, "fbclid"),
         "erro": str(erro),
     })
 

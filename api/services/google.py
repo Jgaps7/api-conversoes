@@ -11,38 +11,35 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from api.event import EventoConversao
 from utils.logger import log_sucesso_google, log_erro_google
 
-
 def hash_dado(dado):
-    """Aplica hash SHA-256 ao dado, se ele existir (usado para email, telefone, nome, sobrenome)."""
     if dado:
         return hashlib.sha256(dado.strip().lower().encode()).hexdigest()
     return None
 
-
 def carregar_credenciais_google(user_id):
-    """
-    Busca as credenciais da conta Google Ads vinculadas ao usuário no banco PostgreSQL.
-    """
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
         SELECT chave, valor FROM credenciais 
         WHERE user_id = %s AND plataforma = 'google'
-    """, (user_id,))  # ✅ CORRIGIDO: antes usava email_usuario
+    """, (user_id,))
     dados = dict(cursor.fetchall())
     conn.close()
     return dados
 
+# Função extra para aceitar dict ou objeto
+def get_attr(evento, campo, default=None):
+    if isinstance(evento, dict):
+        return evento.get(campo, default)
+    return getattr(evento, campo, default)
 
-async def enviar_para_google(evento: EventoConversao):
-    """
-    Envia evento de conversão para a API do Google Ads usando o ConversionUploadService.
-    """
+async def enviar_para_google(evento):
     try:
-        if not evento.user_id:
+        user_id = get_attr(evento, "user_id")
+        if not user_id:
             return {"erro": "user_id não informado no evento."}
 
-        cred = carregar_credenciais_google(evento.user_id)
+        cred = carregar_credenciais_google(user_id)
         if not cred:
             return {"erro": "Credenciais do Google não encontradas para este usuário."}
 
@@ -67,22 +64,24 @@ async def enviar_para_google(evento: EventoConversao):
         conversion.conversion_value = 1.0
         conversion.currency_code = "BRL"
 
-        if evento.gclid:
-            conversion.gclid = evento.gclid
+        gclid = get_attr(evento, "gclid")
+        if gclid:
+            conversion.gclid = gclid
         else:
             user_identifier = client.get_type("UserIdentifier")
+            email = get_attr(evento, "email")
+            telefone = get_attr(evento, "telefone")
+            nome = get_attr(evento, "nome")
+            sobrenome = get_attr(evento, "sobrenome")
 
-            if evento.email:
-                user_identifier.hashed_email = hash_dado(evento.email)
-
-            if evento.telefone:
-                user_identifier.hashed_phone_number = hash_dado(evento.telefone)
-
-            if evento.nome:
-                user_identifier.hashed_first_name = hash_dado(evento.nome)
-
-            if evento.sobrenome:
-                user_identifier.hashed_last_name = hash_dado(evento.sobrenome)
+            if email:
+                user_identifier.hashed_email = hash_dado(email)
+            if telefone:
+                user_identifier.hashed_phone_number = hash_dado(telefone)
+            if nome:
+                user_identifier.hashed_first_name = hash_dado(nome)
+            if sobrenome:
+                user_identifier.hashed_last_name = hash_dado(sobrenome)
 
             conversion.user_identifiers.append(user_identifier)
 
@@ -93,7 +92,6 @@ async def enviar_para_google(evento: EventoConversao):
         request.partial_failure = False
 
         response = service.upload_click_conversions(request=request)
-
         resultado = {"mensagem": "Conversão enviada com sucesso.", "response": str(response)}
         log_sucesso_google(resultado, evento)
         return resultado

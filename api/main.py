@@ -93,11 +93,9 @@ def validar_api_key(email: str, plataforma: str, api_key: str):
     conn.close()
     return bool(resultado)
 
-
-
 # ------------------------- ENDPOINT DE CONVERSÃO -------------------------
 @app.post("/conversao")
-@limiter.limit("100/minute")  # Limita a 100 requisições por minuto por IP
+@limiter.limit("100/minute")
 async def receber_conversao(
     request: Request,
     evento: EventoConversao,
@@ -114,12 +112,9 @@ async def receber_conversao(
                 detail=f"Origem inválida: use {', '.join(origens_validas)}."
             )
 
-        # --- CAPTURA E SALVA O PAYLOAD COMPLETO ---
-        evento_json = await request.json()  # Pega o JSON bruto do frontend (todos os campos)
-        
         # Leads anônimos (cookies/site) — não exigem email nem API Key
         if evento.origem in ("cookies", "site"):
-            salvar_evento(evento_json)  # Passe o dict completo para o salvamento!
+            salvar_evento(evento)  # Passe o objeto Pydantic!
             return {"status": "recebido", "detalhes": "Lead anônimo armazenado (cookies/site)."}
 
         # Leads de Google/Meta — exige API Key e email
@@ -127,13 +122,13 @@ async def receber_conversao(
             raise HTTPException(status_code=401, detail="Header 'x-api-key' ausente.")
         if not evento.email:
             print("[INFO] Evento sem email — será armazenado, mas não enviado.")
-            salvar_evento(evento_json)
+            salvar_evento(evento)
             return {"status": "recebido", "detalhes": "Evento armazenado sem envio por falta de email."}
 
         if not validar_api_key(evento.email, evento.origem, x_api_key):
             raise HTTPException(status_code=403, detail="API Key inválida para esse usuário ou plataforma.")
 
-        salvar_evento(evento_json)
+        salvar_evento(evento)
 
         # ------------------------- NOVO CONTROLE POR USUÁRIO -------------------------
         conn = get_connection()
@@ -142,20 +137,20 @@ async def receber_conversao(
         res = cursor.fetchone()
         conn.close()
 
-        if res and res[0]:  # envio_ativado = True
+        if res and res[0]:
             if evento.origem == "google":
-                resultado = await enviar_para_google(evento_json)
+                resultado = await enviar_para_google(evento.dict())
                 if "erro" in resultado:
-                    log_erro_google(resultado["erro"], evento_json)
+                    log_erro_google(resultado["erro"], evento.dict())
                 else:
-                    log_sucesso_google(resultado, evento_json)
+                    log_sucesso_google(resultado, evento.dict())
 
             elif evento.origem == "meta":
-                resultado = await enviar_para_meta(evento_json)
+                resultado = await enviar_para_meta(evento.dict())
                 if "erro" in resultado:
-                    log_erro_meta(resultado["erro"], evento_json)
+                    log_erro_meta(resultado["erro"], evento.dict())
                 else:
-                    log_sucesso_meta(resultado, evento_json)
+                    log_sucesso_meta(resultado, evento.dict())
 
             print(f"[EVENTO ENVIADO] Resultado: {resultado}")
             return {"status": "sucesso", "detalhes": resultado}

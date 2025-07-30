@@ -69,21 +69,30 @@ class EventoConversao(BaseModel, extra=Extra.allow):
 def validar_api_key(email: str, plataforma: str, api_key: str):
     conn = get_connection()
     cursor = conn.cursor()
-    # Primeiro pega o user_id pelo email
+    print(f"===> Validação de API Key: email={email}, plataforma={plataforma}, api_key={api_key}")
+
     cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
     user = cursor.fetchone()
+    print(f"===> Resultado SELECT id FROM users: {user}")
+
     if not user:
+        print("===> Usuário não encontrado!")
         conn.close()
         return False
+
     user_id = user[0]
-    # Depois procura a api_key correta para esse user_id e plataforma
+    print(f"===> user_id encontrado: {user_id}")
+
     cursor.execute("""
         SELECT 1 FROM credenciais
         WHERE user_id = %s AND plataforma = %s AND chave = 'api_key' AND valor = %s
     """, (user_id, plataforma, api_key))
     resultado = cursor.fetchone()
+    print(f"===> Resultado SELECT na tabela credenciais: {resultado}")
+
     conn.close()
     return bool(resultado)
+
 
 
 # ------------------------- ENDPOINT DE CONVERSÃO -------------------------

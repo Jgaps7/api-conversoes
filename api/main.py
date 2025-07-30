@@ -69,13 +69,22 @@ class EventoConversao(BaseModel, extra=Extra.allow):
 def validar_api_key(email: str, plataforma: str, api_key: str):
     conn = get_connection()
     cursor = conn.cursor()
+    # Primeiro pega o user_id pelo email
+    cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+    user = cursor.fetchone()
+    if not user:
+        conn.close()
+        return False
+    user_id = user[0]
+    # Depois procura a api_key correta para esse user_id e plataforma
     cursor.execute("""
-        SELECT 1 FROM credenciais 
-        WHERE email_usuario = ? AND plataforma = ? AND api_key = ?
-    """, (email, plataforma, api_key))
+        SELECT 1 FROM credenciais
+        WHERE user_id = %s AND plataforma = %s AND chave = 'api_key' AND valor = %s
+    """, (user_id, plataforma, api_key))
     resultado = cursor.fetchone()
     conn.close()
     return bool(resultado)
+
 
 # ------------------------- ENDPOINT DE CONVERSÃO -------------------------
 @app.post("/conversao")

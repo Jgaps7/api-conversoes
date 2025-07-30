@@ -69,8 +69,13 @@ st.markdown("""
 def carregar_eventos():
     try:
         conn = get_connection()
-        df = pd.read_sql("SELECT * FROM eventos", conn)
+        df = pd.read_sql_query("SELECT * FROM eventos", conn)
         conn.close()
+        # Só faz expansão se a coluna 'dados' existir
+        if "dados" in df.columns:
+            df['dados'] = df['dados'].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
+            dados_expandido = pd.json_normalize(df['dados'])
+            df = df.drop(columns=['dados']).join(dados_expandido)
         return df
     except Exception as e:
         st.error(f"Erro ao carregar eventos: {e}")

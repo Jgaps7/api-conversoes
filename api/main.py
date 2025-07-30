@@ -1,11 +1,12 @@
 from fastapi import FastAPI, HTTPException, Header, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Extra
 from typing import Optional
 from dotenv import load_dotenv
 from supabase_conn import get_connection
 from fastapi.responses import JSONResponse
 import os
 import sys
+import json
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -38,8 +39,8 @@ app = FastAPI(title="API de Conversões Google/Meta", version="1.0.0")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Modelo de dados esperado
-class EventoConversao(BaseModel):
+# Modelo de dados esperado (agora aceita campos extras do JS automaticamente)
+class EventoConversao(BaseModel, extra=Extra.allow):
     nome: Optional[str] = None
     sobrenome: Optional[str] = None
     email: Optional[str] = None
@@ -88,24 +89,33 @@ async def receber_conversao(
         print(f"[EVENTO RECEBIDO] Origem: {evento.origem} | Evento: {evento.evento}")
         log_evento_recebido(evento)
 
-        # Validação da origem
-        if evento.origem not in ("google", "meta"):
-            raise HTTPException(status_code=400, detail="Origem inválida: use 'google' ou 'meta'.")
+        origens_validas = ("google", "meta", "cookies", "site")
+        if evento.origem not in origens_validas:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Origem inválida: use {', '.join(origens_validas)}."
+            )
 
-        # Verifica existência do header de API Key
+        # --- CAPTURA E SALVA O PAYLOAD COMPLETO ---
+        evento_json = await request.json()  # Pega o JSON bruto do frontend (todos os campos)
+        
+        # Leads anônimos (cookies/site) — não exigem email nem API Key
+        if evento.origem in ("cookies", "site"):
+            salvar_evento(evento_json)  # Passe o dict completo para o salvamento!
+            return {"status": "recebido", "detalhes": "Lead anônimo armazenado (cookies/site)."}
+
+        # Leads de Google/Meta — exige API Key e email
         if not x_api_key:
             raise HTTPException(status_code=401, detail="Header 'x-api-key' ausente.")
-
-        # Email é obrigatório para autenticação
         if not evento.email:
-            raise HTTPException(status_code=400, detail="Campo 'email' é obrigatório para autenticação.")
+            print("[INFO] Evento sem email — será armazenado, mas não enviado.")
+            salvar_evento(evento_json)
+            return {"status": "recebido", "detalhes": "Evento armazenado sem envio por falta de email."}
 
-        # Validação da API Key vinculada ao usuário
         if not validar_api_key(evento.email, evento.origem, x_api_key):
             raise HTTPException(status_code=403, detail="API Key inválida para esse usuário ou plataforma.")
 
-        # Armazena o evento no banco, mesmo se envio estiver desativado
-        salvar_evento(evento)
+        salvar_evento(evento_json)
 
         # ------------------------- NOVO CONTROLE POR USUÁRIO -------------------------
         conn = get_connection()
@@ -116,22 +126,21 @@ async def receber_conversao(
 
         if res and res[0]:  # envio_ativado = True
             if evento.origem == "google":
-                resultado = await enviar_para_google(evento)
+                resultado = await enviar_para_google(evento_json)
                 if "erro" in resultado:
-                    log_erro_google(resultado["erro"], evento)
+                    log_erro_google(resultado["erro"], evento_json)
                 else:
-                    log_sucesso_google(resultado, evento)
+                    log_sucesso_google(resultado, evento_json)
 
             elif evento.origem == "meta":
-                resultado = await enviar_para_meta(evento)
+                resultado = await enviar_para_meta(evento_json)
                 if "erro" in resultado:
-                    log_erro_meta(resultado["erro"], evento)
+                    log_erro_meta(resultado["erro"], evento_json)
                 else:
-                    log_sucesso_meta(resultado, evento)
+                    log_sucesso_meta(resultado, evento_json)
 
             print(f"[EVENTO ENVIADO] Resultado: {resultado}")
             return {"status": "sucesso", "detalhes": resultado}
-
         else:
             print("[EVENTO RECEBIDO] Envio desativado para este usuário - armazenado apenas.")
             return {"status": "recebido", "detalhes": "Envio desativado para este cliente. Evento armazenado com sucesso."}
@@ -140,7 +149,7 @@ async def receber_conversao(
         print(f"[ERRO] {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
 
-#Status da API
+# Status da API
 @app.get("/status")
 def verificar_status_envio(email: str):
     """

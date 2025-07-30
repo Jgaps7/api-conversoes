@@ -5,7 +5,6 @@
     let nomeCompleto = "";
     let email = "";
     let telefone = "";
-    let consentimento = false;
 
     function getCookie(name) {
       const value = `; ${document.cookie}`;
@@ -18,8 +17,9 @@
     }
 
     if (getCookie('cmplz_banner-status') === 'dismissed') {
-  setCookie('cookie_consent', 'true');
-}
+      setCookie('cookie_consent', 'true');
+    }
+
     function gerarIdUnico() {
       const chave = 'visitor_id';
       let id = getCookie(chave);
@@ -91,6 +91,7 @@
       const nome = nomeSplit[0] || null;
       const sobrenome = nomeSplit.slice(1).join(" ") || null;
 
+      // --- CAMPOS EXTRAS PARA DADOS AVANÇADOS ---
       const payload = {
         nome,
         sobrenome,
@@ -110,7 +111,15 @@
         fbp: getCookie("fbp") || null,
         fbc: getCookie("fbc") || null,
         campanha: getCookie("utm_campaign") || null,
-        consentimento: true
+        consentimento: true,
+        idioma: navigator.language || null,
+        plataforma: navigator.platform || null,
+        largura_tela: window.screen.width,
+        altura_tela: window.screen.height,
+        timezone_offset: (new Date()).getTimezoneOffset(),
+        device_memory: navigator.deviceMemory || null,
+        is_mobile: /Mobi|Android/i.test(navigator.userAgent),
+        data_evento: Date.now()
       };
 
       fetch(endpoint, {

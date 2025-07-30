@@ -6,6 +6,7 @@ from auth import requer_login
 from utils.config import get_envio_ativado, set_envio_ativado
 import os
 import sys
+import secrets
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
@@ -58,15 +59,31 @@ with st.form("form_cadastro"):
             if cursor.fetchone():
                 st.error("❌ Este e-mail já está cadastrado.")
             else:
+                # Gera senha e cadastra usuário
                 cursor.execute("""
                     INSERT INTO users (email, senha, nivel)
                     VALUES (%s, %s, %s)
+                    RETURNING id
                 """, (novo_email, hash_senha(nova_senha), novo_nivel))
+                novo_user_id = cursor.fetchone()[0]
+
+                # Gera API Key automática
+                api_key = secrets.token_urlsafe(32)
+
+                # Cadastra API Key para as plataformas desejadas
+                for plataforma in ["google", "meta"]:
+                    cursor.execute("""
+                        INSERT INTO credenciais (user_id, plataforma, chave, valor)
+                        VALUES (%s, %s, %s, %s)
+                    """, (novo_user_id, plataforma, "api_key", api_key))
+
                 conn.commit()
-                st.success(f"✅ Usuário '{novo_email}' cadastrado com sucesso!")
+                st.success(f"✅ Usuário '{novo_email}' cadastrado com sucesso!\nAPI Key: {api_key}\n(Salve esta chave, será exibida só agora!)")
+                st.info("A API Key já está vinculada às plataformas Google e Meta. Distribua ao cliente com segurança.")
                 st.rerun()
         except Exception as e:
             st.error(f"Erro ao cadastrar usuário: {str(e)}")
+
 
 
 # Edição/Remoção    

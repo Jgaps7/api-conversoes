@@ -9,7 +9,6 @@ import sys
 # Ajuste do path para importar corretamente
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-
 from api.event import EventoConversao
 from api.services.google import enviar_para_google
 from api.services.meta import enviar_para_meta
@@ -40,18 +39,26 @@ if not st.session_state.get("autenticado"):
 def carregar_eventos():
     try:
         conn = get_connection()
-        df = pd.read_sql("SELECT * FROM eventos", conn)
+        df = pd.read_sql_query("SELECT * FROM eventos", conn)
         conn.close()
+        # Só faz expansão se a coluna 'dados' existir
+        if "dados" in df.columns:
+            df['dados'] = df['dados'].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
+            dados_expandido = pd.json_normalize(df['dados'])
+            df = df.drop(columns=['dados']).join(dados_expandido)
         return df
     except Exception as e:
-        st.error(f"Erro ao carregar dados do banco: {e}")
+        st.error(f"Erro ao carregar eventos: {e}")
         return pd.DataFrame()
-
-df = carregar_eventos()
-
-if df.empty:
-    st.warning("Nenhum evento encontrado no banco de dados ainda.")
-    st.stop()
+    
+# --------------------- TRATAR JSON DADOS DINÂMICOS ---------------------
+if "dados" in df.columns:
+    # Converte JSON string para dict
+    df['dados'] = df['dados'].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
+    # Expande todos os campos extras em colunas
+    df_dados = pd.json_normalize(df['dados'])
+    # Concatena ao dataframe principal (colunas duplicadas serão renomeadas com _x)
+    df = pd.concat([df.drop(columns=['dados']), df_dados], axis=1)
 
 # --------------------- GRÁFICOS E MÉTRICAS ---------------------
 st.subheader("📈 Resumo Geral")

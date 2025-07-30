@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Header, Request
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Extra
 from typing import Optional
 from dotenv import load_dotenv
@@ -38,6 +39,15 @@ limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="API de Conversões Google/Meta", version="1.0.0")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Adiciona CORS universal (obrigatório para cloud/render)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Para dev. Depois, restrinja para domínios confiáveis!
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Modelo de dados esperado (agora aceita campos extras do JS automaticamente)
 class EventoConversao(BaseModel, extra=Extra.allow):
@@ -133,7 +143,7 @@ async def receber_conversao(
         # ------------------------- NOVO CONTROLE POR USUÁRIO -------------------------
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT envio_ativado FROM users WHERE email = ?", (evento.email,))
+        cursor.execute("SELECT envio_ativado FROM users WHERE email = %s", (evento.email,))
         res = cursor.fetchone()
         conn.close()
 
@@ -171,7 +181,7 @@ def verificar_status_envio(email: str):
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT envio_ativado FROM users WHERE email = ?", (email,))
+        cursor.execute("SELECT envio_ativado FROM users WHERE email = %s", (email,))
         resultado = cursor.fetchone()
         conn.close()
 

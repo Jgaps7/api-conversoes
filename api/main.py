@@ -112,11 +112,26 @@ async def receber_conversao(
     x_api_key: Optional[str] = Header(None)
 ):
     try:
-        print(f"[EVENTO RECEBIDO] Origem: {evento.origem} | Evento: {evento.evento}")
+        # =========== DEBUG INÍCIO ===========
+        print("\n[DEBUG] ===== NOVO EVENTO RECEBIDO =====")
+        try:
+            raw_json = await request.json()
+            print("[DEBUG] RAW JSON:", json.dumps(raw_json, indent=2, ensure_ascii=False))
+        except Exception as e:
+            print("[DEBUG] Falha ao pegar request.json:", e)
+        print("[DEBUG] evento.dict():", evento.dict())
+        print("[DEBUG] Headers:", dict(request.headers))
+        print("[DEBUG] x-api-key:", x_api_key)
+        print("[DEBUG] Origem:", evento.origem)
+        print("[DEBUG] Email:", evento.email)
+        print("========================================\n")
+        # =========== DEBUG FIM ==============
+
         log_evento_recebido(evento)
 
         origens_validas = ("google", "meta", "cookies", "site")
         if evento.origem not in origens_validas:
+            print("[DEBUG] Origem inválida detectada!")
             raise HTTPException(
                 status_code=400,
                 detail=f"Origem inválida: use {', '.join(origens_validas)}."
@@ -124,21 +139,28 @@ async def receber_conversao(
 
         # Leads anônimos (cookies/site) — não exigem email nem API Key
         if evento.origem in ("cookies", "site"):
+            print("[DEBUG] Evento identificado como ANÔNIMO ('cookies' ou 'site'). Salvando sem autenticação/API key.")
             salvar_evento(evento)  # Passe o objeto Pydantic!
             return {"status": "recebido", "detalhes": "Lead anônimo armazenado (cookies/site)."}
 
         # Leads de Google/Meta — exige API Key e email
         if not x_api_key:
+            print("[DEBUG] x-api-key ausente em evento de origem que exige autenticação.")
             raise HTTPException(status_code=401, detail="Header 'x-api-key' ausente.")
         if not evento.email:
-            print("[INFO] Evento sem email — será armazenado, mas não enviado.")
+            print("[DEBUG] Evento Google/Meta sem email — será armazenado, mas não enviado.")
             salvar_evento(evento)
             return {"status": "recebido", "detalhes": "Evento armazenado sem envio por falta de email."}
 
         if not validar_api_key(evento.email, evento.origem, x_api_key):
+            print("[DEBUG] API KEY inválida para usuário ou plataforma.")
             raise HTTPException(status_code=403, detail="API Key inválida para esse usuário ou plataforma.")
 
+        print("[DEBUG] Evento Google/Meta autenticado e validado. Salvando evento.")
         salvar_evento(evento)
+
+        # ... resto do código ...
+
 
         # ------------------------- NOVO CONTROLE POR USUÁRIO -------------------------
         conn = get_connection()

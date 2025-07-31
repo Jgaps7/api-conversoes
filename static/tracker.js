@@ -2,20 +2,16 @@
   document.addEventListener("DOMContentLoaded", function () {
     const endpoint = "https://painel-conversoes.onrender.com/conversao";
 
-    let nomeCompleto = "";
-    let email = "";
-    let telefone = "";
-
     function getCookie(name) {
       const value = `; ${document.cookie}`;
       const parts = value.split(`; ${name}=`);
       if (parts.length === 2) return parts.pop().split(';').shift();
     }
-
     function setCookie(name, value) {
       document.cookie = `${name}=${value}; path=/; max-age=31536000`;
     }
 
+    // Cookie consent tracker
     if (getCookie('cmplz_banner-status') === 'dismissed') {
       setCookie('cookie_consent', 'true');
     }
@@ -29,14 +25,19 @@
       }
       return id;
     }
-
     const visitorId = gerarIdUnico();
 
+    // Salva principais parâmetros de campanha e cookies
     const params = new URLSearchParams(window.location.search);
     ["gclid", "fbclid", "fbp", "fbc", "utm_campaign", "utm_source", "utm_medium"].forEach((chave) => {
       const valor = params.get(chave);
       if (valor) setCookie(chave, valor);
     });
+
+    // Detecta preenchimento dos principais campos
+    let nomeCompleto = getCookie("nome_completo") || "";
+    let email = getCookie("email") || "";
+    let telefone = getCookie("telefone") || "";
 
     document.querySelectorAll("input").forEach((input) => {
       input.addEventListener("input", () => {
@@ -46,12 +47,10 @@
           nomeCompleto = input.value;
           setCookie("nome_completo", nomeCompleto);
         }
-
         if (name?.includes("email")) {
           email = input.value;
           setCookie("email", email);
         }
-
         if (name?.includes("telefone") || name?.includes("cel")) {
           telefone = input.value;
           setCookie("telefone", telefone);
@@ -59,47 +58,37 @@
       });
     });
 
-    const urlAtual = window.location.href.toLowerCase();
-    if (urlAtual.includes("/checkout") || urlAtual.includes("/pagamento")) {
-      enviarEvento("initiate_checkout");
-    }
-    if (urlAtual.includes("/obrigado") || urlAtual.includes("/success")) {
-      enviarEvento("purchase");
-    }
-
-    document.addEventListener("click", async function (event) {
-      const target = event.target.closest("button, a");
-      if (!target) return;
-
-      let tipoEvento = "clique_generico";
-      if (target.href?.includes("wa.me")) tipoEvento = "click_whatsapp";
-      if (target.innerText?.toLowerCase().includes("enviar")) tipoEvento = "form_submit";
-      if (target.className?.toLowerCase().includes("cta")) tipoEvento = "click_cta";
-
+    // Função para montar e enviar eventos
+    async function enviarEvento(tipoEvento, extra = {}) {
       const consent = getCookie("cookie_consent") === "true";
       if (!consent) return;
 
-      const ip = await fetch("https://api.ipify.org?format=json")
-        .then((res) => res.json())
-        .then((data) => data.ip)
-        .catch(() => null);
+      // Pega o IP uma vez só (ou reuse, pode deixar lento se chamar várias vezes!)
+      let ip = sessionStorage.getItem('tracker_ip');
+      if (!ip) {
+        ip = await fetch("https://api.ipify.org?format=json")
+          .then((res) => res.json())
+          .then((data) => data.ip)
+          .catch(() => null);
+        sessionStorage.setItem('tracker_ip', ip);
+      }
 
       let origem = "google";
       if (getCookie("fbclid") || getCookie("fbp") || getCookie("fbc")) origem = "meta";
 
-      const nomeSplit = (nomeCompleto || getCookie("nome_completo") || "").trim().split(" ");
+      const nomeSplit = (nomeCompleto || "").trim().split(" ");
       const nome = nomeSplit[0] || null;
       const sobrenome = nomeSplit.slice(1).join(" ") || null;
 
-      // --- CAMPOS EXTRAS PARA DADOS AVANÇADOS ---
       const payload = {
         nome,
         sobrenome,
-        email: email || getCookie("email") || null,
-        telefone: telefone || getCookie("telefone") || null,
+        email: email || null,
+        telefone: telefone || null,
         ip,
         user_agent: navigator.userAgent,
         url: window.location.href,
+        url_origem: window.location.href, // Compatível com home.py
         referrer: document.referrer || null,
         pagina_destino: window.location.pathname,
         botao_clicado: tipoEvento,
@@ -111,6 +100,8 @@
         fbp: getCookie("fbp") || null,
         fbc: getCookie("fbc") || null,
         campanha: getCookie("utm_campaign") || null,
+        utm_source: getCookie("utm_source") || null,
+        utm_medium: getCookie("utm_medium") || null,
         consentimento: true,
         idioma: navigator.language || null,
         plataforma: navigator.platform || null,
@@ -119,7 +110,8 @@
         timezone_offset: (new Date()).getTimezoneOffset(),
         device_memory: navigator.deviceMemory || null,
         is_mobile: /Mobi|Android/i.test(navigator.userAgent),
-        data_evento: Date.now()
+        data_evento: Date.now(),
+        ...extra
       };
 
       fetch(endpoint, {
@@ -127,6 +119,41 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
+    }
+
+    // Evento de aceitou cookies (lead anônimo)
+    if (getCookie("cookie_consent") === "true") {
+      enviarEvento("aceitou_cookies");
+    }
+
+    // Eventos de navegação (pageview)
+    enviarEvento("visitou_pagina");
+
+    // Evento de checkout
+    const urlAtual = window.location.href.toLowerCase();
+    if (urlAtual.includes("/checkout") || urlAtual.includes("/pagamento")) {
+      enviarEvento("initiate_checkout");
+    }
+    if (urlAtual.includes("/obrigado") || urlAtual.includes("/success")) {
+      enviarEvento("purchase");
+    }
+
+    // Evento de clique em botões/links
+    document.addEventListener("click", function (event) {
+      const target = event.target.closest("button, a");
+      if (!target) return;
+
+      let tipoEvento = "clique_generico";
+      if (target.href?.includes("wa.me")) tipoEvento = "click_whatsapp";
+      if (target.innerText?.toLowerCase().includes("enviar")) tipoEvento = "form_submit";
+      if (target.className?.toLowerCase().includes("cta")) tipoEvento = "click_cta";
+
+      enviarEvento(tipoEvento, { texto_botao: target.innerText });
     });
+
+    // (Opcional) Detecta navegação SPA/PWA
+    window.addEventListener("popstate", () => enviarEvento("visitou_pagina"));
+    window.addEventListener("pushstate", () => enviarEvento("visitou_pagina"));
+    // Se usar router custom, adicione hooks também!
   });
 })();

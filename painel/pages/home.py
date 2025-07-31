@@ -79,35 +79,34 @@ def carregar_eventos():
 df = carregar_eventos()
 print("🧪 Colunas carregadas:", df.columns.tolist())
 
+# 🔹 Normaliza/garante colunas básicas mesmo para eventos anônimos:
+if "email" not in df.columns:
+    df["email"] = "Anônimo"
+df["email"] = df["email"].fillna("Anônimo")  # Pode vir NaN/null
+
+if "url_origem" not in df.columns:
+    if "url" in df.columns:
+        df["url_origem"] = df["url"]
+    else:
+        df["url_origem"] = "desconhecido"
+
+if "campanha" not in df.columns:
+    df["campanha"] = "Indefinida"
+
+# Se quiser filtrar só pelo user_id do cliente logado:
 if st.session_state["nivel"] != "admin":
     df = df[df["user_id"] == st.session_state["user_id"]]
 
+# Filtros universais
+clientes = ["Todos"] + list(df["email"].unique())
+dominios = ["Todos"] + list(df["url_origem"].unique())
+campanhas = ["Todas"] + list(df["campanha"].unique())
 
-
-# 🔐 Filtro de segurança: restringe visualização para o próprio cliente
-user_id_atual = st.session_state.get("user_id")
-nivel = st.session_state.get("nivel")
-
-if nivel != "admin":
-    df = df[df["user_id"] == user_id_atual]
-
-# ---------------- FILTROS ----------------
-st.sidebar.header("🔍 Filtros")
-
-# 🔹 Conversão segura da coluna de data
-df["data_envio"] = pd.to_datetime(df.get("data_envio", df.get("data_hora", datetime.now())), errors="coerce")
-
-# 🔹 Opções únicas para filtros
-clientes = df["email"].dropna().unique()
-dominios = df["url"].dropna().unique() if "url" in df.columns else []
-campanhas = df["campanha"].dropna().unique() if "campanha" in df.columns else []
-
-# 🔹 Filtros interativos na sidebar
 email_cliente = st.sidebar.selectbox("👤 Cliente (email)", options=clientes)
-dominio = st.sidebar.selectbox("🌐 Domínio", options=dominios) if len(dominios) > 0 else ""
-campanha = st.sidebar.selectbox("📣 Campanha", options=["Todas"] + list(campanhas))
+dominio = st.sidebar.selectbox("🌐 Domínio", options=dominios)
+campanha = st.sidebar.selectbox("📣 Campanha", options=campanhas)
 
-# 🔹 Datas (com fallback seguro para hoje se não houver dados)
+df["data_envio"] = pd.to_datetime(df.get("data_envio", df.get("data_hora", datetime.now())), errors="coerce")
 if df["data_envio"].notna().any():
     data_min = df["data_envio"].min().date()
     data_max = df["data_envio"].max().date()
@@ -118,25 +117,17 @@ else:
 data_inicio = st.sidebar.date_input("📅 Data Início", value=data_min, min_value=data_min, max_value=data_max)
 data_fim = st.sidebar.date_input("📅 Data Fim", value=data_max, min_value=data_min, max_value=data_max)
 
-# ✅ Verificação obrigatória para existência da coluna
-if "url" not in df.columns:
-    st.error("❌ A coluna 'url' não foi encontrada nos dados. Nenhum evento foi registrado ainda ou a estrutura está incorreta.")
-    st.stop()
-
-# 🔹 Filtro de dados com base nos campos selecionados
-filtro = (
-    (df["email"] == email_cliente) &
-    (df["url"] == dominio) &
-    (df["data_envio"].dt.date >= data_inicio) &
-    (df["data_envio"].dt.date <= data_fim)
-)
-
+# Filtro universal
+filtro = (df["data_envio"].dt.date >= data_inicio) & (df["data_envio"].dt.date <= data_fim)
+if email_cliente != "Todos":
+    filtro &= (df["email"] == email_cliente)
+if dominio != "Todos":
+    filtro &= (df["url_origem"] == dominio)
 if campanha != "Todas":
     filtro &= (df["campanha"] == campanha)
 
-
-# 🔹 DataFrame final filtrado
 df_filtrado = df[filtro]
+
 
 
 # ---------------- DESTAQUE DE CAMPANHA ----------------
@@ -304,6 +295,34 @@ def mostrar_dashboard(df_filtrado):
 
     fig_status = px.pie(df_status, names="Status", values="Quantidade", title="Status dos Reenvios")
     st.plotly_chart(fig_status, use_container_width=True)
+
+     # === [NOVO BLOCO: ANÁLISE DE EVENTOS ANÔNIMOS] ===
+    st.divider()
+    st.subheader("🕵️‍♂️ Eventos Anônimos (Cookies/Site)")
+
+    # Filtra só eventos anônimos (cookies ou site)
+    df_anonimos = df_filtrado[df_filtrado["origem"].isin(["cookies", "site"])]
+
+    # Exibe tabela resumida
+    st.markdown("**Total de eventos anônimos:** {}".format(len(df_anonimos)))
+    if not df_anonimos.empty:
+        # Tabela de eventos anônimos
+        st.dataframe(
+            df_anonimos.sort_values(by="data_envio", ascending=False).head(10),
+            use_container_width=True,
+            height=320
+        )
+
+        # Gráfico por tipo de evento anônimo
+        fig_anon = px.histogram(
+            df_anonimos,
+            x="evento",
+            color="origem",
+            title="Eventos Anônimos por Tipo"
+        )
+        st.plotly_chart(fig_anon, use_container_width=True)
+    else:
+        st.info("Nenhum evento anônimo registrado até o momento.")
 
 
 def mostrar_logs():

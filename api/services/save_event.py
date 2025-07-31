@@ -7,28 +7,20 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 def salvar_evento(evento: EventoConversao):
     """
-    Salva o evento no banco Supabase (PostgreSQL),
-    utilizando a tabela 'eventos'.
-    Aceita tanto eventos com user_id quanto eventos anônimos.
+    Salva o evento no banco Supabase (PostgreSQL), utilizando a tabela 'eventos'.
+    Compatível com campos separados por coluna.
     """
 
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Para campos opcionais: usa getattr, None se não existe
-    def _int(val):
-        try:
-            return int(val)
-        except (TypeError, ValueError):
-            return None
-
-    cursor.execute('''
+    sql = """
         INSERT INTO eventos (
-            user_id,
             nome,
             sobrenome,
             email,
             telefone,
+            user_id,
             ip,
             user_agent,
             url,
@@ -46,35 +38,44 @@ def salvar_evento(evento: EventoConversao):
             origem,
             evento,
             visitor_id,
-            consentimento,
-            data_envio
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    ''', (
-        _int(getattr(evento, "user_id", None)),
-        getattr(evento, "nome", None),
-        getattr(evento, "sobrenome", None),
-        getattr(evento, "email", None),
-        getattr(evento, "telefone", None),
-        getattr(evento, "ip", None),
-        getattr(evento, "user_agent", None),
-        getattr(evento, "url", None),
-        getattr(evento, "referrer", None),
-        getattr(evento, "pagina_destino", None),
-        getattr(evento, "botao_clicado", None),
-        getattr(evento, "gclid", None),
-        getattr(evento, "fbclid", None),
-        getattr(evento, "fbp", None),
-        getattr(evento, "fbc", None),
-        getattr(evento, "cidade", None),
-        getattr(evento, "regiao", None),
-        getattr(evento, "pais", None),
-        getattr(evento, "campanha", None),
-        getattr(evento, "origem", None),
-        getattr(evento, "evento", None),
-        getattr(evento, "visitor_id", None),
-        getattr(evento, "consentimento", None),
-        datetime.utcnow()
-    ))
+            consentimento
+        ) VALUES (
+            %(nome)s, %(sobrenome)s, %(email)s, %(telefone)s, %(user_id)s,
+            %(ip)s, %(user_agent)s, %(url)s, %(referrer)s, %(pagina_destino)s, %(botao_clicado)s,
+            %(gclid)s, %(fbclid)s, %(fbp)s, %(fbc)s,
+            %(cidade)s, %(regiao)s, %(pais)s, %(campanha)s,
+            %(origem)s, %(evento)s, %(visitor_id)s, %(consentimento)s
+        )
+    """
+
+    # Pega como dict (compatível tanto com Pydantic quanto dict cru)
+    evento_dict = evento.dict() if hasattr(evento, "dict") else evento
+
+    cursor.execute(sql, {
+        "nome": evento_dict.get("nome"),
+        "sobrenome": evento_dict.get("sobrenome"),
+        "email": evento_dict.get("email"),
+        "telefone": evento_dict.get("telefone"),
+        "user_id": evento_dict.get("user_id"),
+        "ip": evento_dict.get("ip"),
+        "user_agent": evento_dict.get("user_agent"),
+        "url": evento_dict.get("url"),
+        "referrer": evento_dict.get("referrer"),
+        "pagina_destino": evento_dict.get("pagina_destino"),
+        "botao_clicado": evento_dict.get("botao_clicado"),
+        "gclid": evento_dict.get("gclid"),
+        "fbclid": evento_dict.get("fbclid"),
+        "fbp": evento_dict.get("fbp"),
+        "fbc": evento_dict.get("fbc"),
+        "cidade": evento_dict.get("cidade"),
+        "regiao": evento_dict.get("regiao"),
+        "pais": evento_dict.get("pais"),
+        "campanha": evento_dict.get("campanha"),
+        "origem": evento_dict.get("origem"),
+        "evento": evento_dict.get("evento"),
+        "visitor_id": evento_dict.get("visitor_id"),
+        "consentimento": evento_dict.get("consentimento"),
+    })
 
     conn.commit()
     conn.close()

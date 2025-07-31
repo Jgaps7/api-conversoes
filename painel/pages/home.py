@@ -71,27 +71,6 @@ def carregar_eventos():
         conn = get_connection()
         df = pd.read_sql_query("SELECT * FROM eventos", conn)
         conn.close()
-        # Só faz expansão se a coluna 'dados' existir
-        if "dados" in df.columns:
-            df['dados'] = df['dados'].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
-            dados_expandido = pd.json_normalize(df['dados'])
-            df = df.drop(columns=['dados']).join(dados_expandido)
-        return df
-    except Exception as e:
-        st.error(f"Erro ao carregar eventos: {e}")
-        return pd.DataFrame()
-    
-
-# ---------------- CONEXÃO E EVENTOS ----------------
-@st.cache_data(show_spinner=False)
-def carregar_eventos():
-    try:
-        conn = get_connection()
-        df = pd.read_sql_query("SELECT * FROM eventos", conn)
-        conn.close()
-        # Expande o campo 'dados' (jsonb) em colunas separadas
-        dados_expandido = pd.json_normalize(df["dados"])
-        df = df.drop(columns=["dados"]).join(dados_expandido)
         return df
     except Exception as e:
         st.error(f"Erro ao carregar eventos: {e}")
@@ -99,8 +78,10 @@ def carregar_eventos():
 
 df = carregar_eventos()
 print("🧪 Colunas carregadas:", df.columns.tolist())
+
 if st.session_state["nivel"] != "admin":
     df = df[df["user_id"] == st.session_state["user_id"]]
+
 
 
 # 🔐 Filtro de segurança: restringe visualização para o próprio cliente
@@ -118,7 +99,7 @@ df["data_envio"] = pd.to_datetime(df.get("data_envio", df.get("data_hora", datet
 
 # 🔹 Opções únicas para filtros
 clientes = df["email"].dropna().unique()
-dominios = df["url_origem"].dropna().unique() if "url_origem" in df.columns else []
+dominios = df["url"].dropna().unique() if "url" in df.columns else []
 campanhas = df["campanha"].dropna().unique() if "campanha" in df.columns else []
 
 # 🔹 Filtros interativos na sidebar
@@ -138,14 +119,14 @@ data_inicio = st.sidebar.date_input("📅 Data Início", value=data_min, min_val
 data_fim = st.sidebar.date_input("📅 Data Fim", value=data_max, min_value=data_min, max_value=data_max)
 
 # ✅ Verificação obrigatória para existência da coluna
-if "url_origem" not in df.columns:
-    st.error("❌ A coluna 'url_origem' não foi encontrada nos dados. Nenhum evento foi registrado ainda ou a estrutura está incorreta.")
+if "url" not in df.columns:
+    st.error("❌ A coluna 'url' não foi encontrada nos dados. Nenhum evento foi registrado ainda ou a estrutura está incorreta.")
     st.stop()
 
 # 🔹 Filtro de dados com base nos campos selecionados
 filtro = (
     (df["email"] == email_cliente) &
-    (df["url_origem"] == dominio) &
+    (df["url"] == dominio) &
     (df["data_envio"].dt.date >= data_inicio) &
     (df["data_envio"].dt.date <= data_fim)
 )

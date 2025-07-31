@@ -7,6 +7,7 @@ from utils.logger import log_sucesso_meta, log_erro_meta
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+import uuid
 
 def hash_dado(valor):
     if valor and isinstance(valor, str):
@@ -43,6 +44,12 @@ async def enviar_para_meta(evento):
         pixel_id = cred["pixel_id"]
         access_token = cred["access_token"]
 
+        # Usa event_id único se vier, senão gera
+        event_id = get_attr(evento, "event_id") or str(uuid.uuid4())
+
+        # Pega user_id extra do _ga se vier
+        ga_id = get_attr(evento, "ga_id")
+
         user_data = {k: v for k, v in {
             "em": hash_dado(get_attr(evento, "email")),
             "ph": hash_dado(get_attr(evento, "telefone")),
@@ -52,8 +59,13 @@ async def enviar_para_meta(evento):
             "client_user_agent": get_attr(evento, "user_agent"),
             "fbc": get_attr(evento, "fbc") or get_attr(evento, "fbclid"),
             "fbp": get_attr(evento, "fbp"),
-            "external_id": get_attr(evento, "visitor_id") or user_id
+            "external_id": get_attr(evento, "visitor_id") or user_id,
+            "client_ga_id": ga_id,  # extra: _ga do cookie, opcional
         }.items() if v is not None}
+
+        # Valor real se enviado, senão 1.0
+        valor = get_attr(evento, "valor", 1.0)
+        currency = get_attr(evento, "currency", "BRL")
 
         custom_data = {k: v for k, v in {
             "utm_source": get_attr(evento, "utm_source"),
@@ -62,8 +74,8 @@ async def enviar_para_meta(evento):
             "referer": get_attr(evento, "referrer"),
             "page": get_attr(evento, "pagina_destino"),
             "button": get_attr(evento, "botao_clicado"),
-            "value": 1.0,
-            "currency": "BRL"
+            "value": valor,
+            "currency": currency
         }.items() if v is not None}
 
         payload = {
@@ -72,6 +84,7 @@ async def enviar_para_meta(evento):
                 "event_time": int(time.time()),
                 "event_source_url": get_attr(evento, "url") or "https://seusite.com",
                 "action_source": "website",
+                "event_id": event_id,
                 "user_data": user_data,
                 "custom_data": custom_data
             }]

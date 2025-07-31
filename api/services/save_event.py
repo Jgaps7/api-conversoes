@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 def salvar_evento(evento: EventoConversao):
     """
     Salva o evento no banco Supabase (PostgreSQL), utilizando a tabela 'eventos'.
-    Compatível com campos separados por coluna.
+    Agora também salva event_id e ga_id.
     """
 
     conn = get_connection()
@@ -38,17 +38,20 @@ def salvar_evento(evento: EventoConversao):
             origem,
             evento,
             visitor_id,
-            consentimento
+            consentimento,
+            event_id,
+            ga_id
         ) VALUES (
             %(nome)s, %(sobrenome)s, %(email)s, %(telefone)s, %(user_id)s,
             %(ip)s, %(user_agent)s, %(url)s, %(referrer)s, %(pagina_destino)s, %(botao_clicado)s,
             %(gclid)s, %(fbclid)s, %(fbp)s, %(fbc)s,
             %(cidade)s, %(regiao)s, %(pais)s, %(campanha)s,
-            %(origem)s, %(evento)s, %(visitor_id)s, %(consentimento)s
+            %(origem)s, %(evento)s, %(visitor_id)s, %(consentimento)s,
+            %(event_id)s, %(ga_id)s
         )
     """
 
-    # Pega como dict (compatível tanto com Pydantic quanto dict cru)
+    # Aceita tanto objeto Pydantic quanto dict
     evento_dict = evento.dict() if hasattr(evento, "dict") else evento
 
     cursor.execute(sql, {
@@ -75,6 +78,8 @@ def salvar_evento(evento: EventoConversao):
         "evento": evento_dict.get("evento"),
         "visitor_id": evento_dict.get("visitor_id"),
         "consentimento": evento_dict.get("consentimento"),
+        "event_id": evento_dict.get("event_id"),
+        "ga_id": evento_dict.get("ga_id"),
     })
 
     conn.commit()

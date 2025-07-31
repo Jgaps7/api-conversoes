@@ -7,13 +7,16 @@
       const parts = value.split(`; ${name}=`);
       if (parts.length === 2) return parts.pop().split(';').shift();
     }
-    function setCookie(name, value) {
-      document.cookie = `${name}=${value}; path=/; max-age=31536000`;
+
+    function setCookie(name, value, opts = {}) {
+      let cookieStr = `${name}=${value}; path=/; max-age=31536000`;
+      if (opts.domain) cookieStr += `; domain=${opts.domain}`;
+      document.cookie = cookieStr;
     }
 
     // Cookie consent tracker
     if (getCookie('cmplz_banner-status') === 'dismissed') {
-      setCookie('cookie_consent', 'true');
+      setCookie('cookie_consent', 'true', { domain: ".seudominio.com" });
     }
 
     function gerarIdUnico() {
@@ -21,17 +24,28 @@
       let id = getCookie(chave);
       if (!id) {
         id = crypto.randomUUID();
-        setCookie(chave, id);
+        setCookie(chave, id, { domain: ".seudominio.com" });
       }
       return id;
     }
     const visitorId = gerarIdUnico();
 
+    // Google Analytics (User ID)
+    function getGA() {
+      return getCookie('_ga') || null;
+    }
+    const ga_id = getGA();
+
+    // Event ID único por evento
+    function gerarEventId() {
+      return crypto.randomUUID();
+    }
+
     // Salva principais parâmetros de campanha e cookies
     const params = new URLSearchParams(window.location.search);
     ["gclid", "fbclid", "fbp", "fbc", "utm_campaign", "utm_source", "utm_medium"].forEach((chave) => {
       const valor = params.get(chave);
-      if (valor) setCookie(chave, valor);
+      if (valor) setCookie(chave, valor, { domain: ".seudominio.com" });
     });
 
     // Detecta preenchimento dos principais campos
@@ -45,15 +59,15 @@
 
         if (name?.includes("nome")) {
           nomeCompleto = input.value;
-          setCookie("nome_completo", nomeCompleto);
+          setCookie("nome_completo", nomeCompleto, { domain: ".seudominio.com" });
         }
         if (name?.includes("email")) {
           email = input.value;
-          setCookie("email", email);
+          setCookie("email", email, { domain: ".seudominio.com" });
         }
         if (name?.includes("telefone") || name?.includes("cel")) {
           telefone = input.value;
-          setCookie("telefone", telefone);
+          setCookie("telefone", telefone, { domain: ".seudominio.com" });
         }
       });
     });
@@ -63,7 +77,7 @@
       const consent = getCookie("cookie_consent") === "true";
       if (!consent) return;
 
-      // Pega o IP uma vez só (ou reuse, pode deixar lento se chamar várias vezes!)
+      // IP (cached por sessão)
       let ip = sessionStorage.getItem('tracker_ip');
       if (!ip) {
         ip = await fetch("https://api.ipify.org?format=json")
@@ -80,6 +94,10 @@
       const nome = nomeSplit[0] || null;
       const sobrenome = nomeSplit.slice(1).join(" ") || null;
 
+      // Use currency e valor customizados quando apropriado
+      let currency = "BRL";
+      let valor = tipoEvento === "purchase" ? 100 : null; // Troque para valor real se possível!
+
       const payload = {
         nome,
         sobrenome,
@@ -88,13 +106,16 @@
         ip,
         user_agent: navigator.userAgent,
         url: window.location.href,
-        url_origem: window.location.href, // Compatível com home.py
+        url_origem: window.location.href,
         referrer: document.referrer || null,
         pagina_destino: window.location.pathname,
         botao_clicado: tipoEvento,
         origem,
-        evento: tipoEvento,
+        evento: tipoEvento === "visitou_pagina" ? "page_view" : tipoEvento,
         visitor_id: visitorId,
+        ga_id: ga_id,           // _ga como user_id extra
+        user_id: ga_id || visitorId,
+        event_id: gerarEventId(),
         gclid: getCookie("gclid") || null,
         fbclid: getCookie("fbclid") || null,
         fbp: getCookie("fbp") || null,
@@ -111,6 +132,8 @@
         device_memory: navigator.deviceMemory || null,
         is_mobile: /Mobi|Android/i.test(navigator.userAgent),
         data_evento: Date.now(),
+        currency: currency,
+        valor: valor,
         ...extra
       };
 
@@ -126,7 +149,7 @@
       enviarEvento("aceitou_cookies");
     }
 
-    // Eventos de navegação (pageview)
+    // Eventos de navegação (page_view)
     enviarEvento("visitou_pagina");
 
     // Evento de checkout

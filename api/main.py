@@ -43,7 +43,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Adiciona CORS universal (obrigatório para cloud/render)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Para dev. Depois, restrinja para domínios confiáveis!
+    allow_origins=["https://casadosbolosandrade.com.br"],  # Para dev. Depois, restrinja para domínios confiáveis!
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

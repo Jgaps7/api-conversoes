@@ -40,16 +40,24 @@ app = FastAPI(title="API de Conversões Google/Meta", version="1.0.0")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Adiciona CORS universal (obrigatório para cloud/render)
+# ========== CORS UNIVERSAL (OBRIGATÓRIO) ==========
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://casadosbolosandrade.com.br", "https://www.casadosbolosandrade.com.br"], # Para dev. Depois, restrinja para domínios confiáveis!
+    allow_origins=[
+        "https://casadosbolosandrade.com.br",
+        "https://www.casadosbolosandrade.com.br"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Modelo de dados esperado (agora aceita campos extras do JS automaticamente)
+# ========== HANDLER EXPLÍCITO PARA OPTIONS ==========
+@app.options("/{rest_of_path:path}")
+async def preflight_handler(rest_of_path: str):
+    return JSONResponse(status_code=204)
+
+# ========== MODELO DE DADOS ==========
 class EventoConversao(BaseModel, extra=Extra.allow):
     nome: Optional[str] = None
     sobrenome: Optional[str] = None
@@ -75,7 +83,7 @@ class EventoConversao(BaseModel, extra=Extra.allow):
     visitor_id: Optional[str] = None  
     consentimento: Optional[bool] = None  
 
-# Função de validação da API Key
+# ========== FUNÇÃO DE VALIDAÇÃO DE API KEY ==========
 def validar_api_key(email: str, plataforma: str, api_key: str):
     conn = get_connection()
     cursor = conn.cursor()
@@ -103,7 +111,7 @@ def validar_api_key(email: str, plataforma: str, api_key: str):
     conn.close()
     return bool(resultado)
 
-# ------------------------- ENDPOINT DE CONVERSÃO -------------------------
+# ========== ENDPOINT DE CONVERSÃO ==========
 @app.post("/conversao")
 @limiter.limit("100/minute")
 async def receber_conversao(
@@ -153,8 +161,6 @@ async def receber_conversao(
             print("[ERRO] Falha ao ler payload bruto:", str(ee))
         raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
 
-
-
         # ------------------------- NOVO CONTROLE POR USUÁRIO -------------------------
         conn = get_connection()
         cursor = conn.cursor()
@@ -187,7 +193,7 @@ async def receber_conversao(
         print(f"[ERRO] {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
 
-# Status da API
+# ========== STATUS DA API ==========
 @app.get("/status")
 def verificar_status_envio(email: str):
     """

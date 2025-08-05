@@ -1,7 +1,9 @@
 (function () {
   document.addEventListener("DOMContentLoaded", function () {
-    // ⬇️ CORRIGIDO: Endpoint direto da API!
+    // Endpoint direto da API
     const endpoint = "https://api-conversoes.onrender.com/conversao";
+    // ⚠️ Defina sua API Key aqui para eventos avançados (lead/purchase), caso necessário!
+    const API_KEY = "rMIQapPK6NyjM9iPriMiJU6_mGySWnp1w3ZqVla02c"; 
 
     function getCookie(name) {
       const value = `; ${document.cookie}`;
@@ -31,25 +33,23 @@
     }
     const visitorId = gerarIdUnico();
 
-    // Google Analytics (User ID)
     function getGA() {
       return getCookie('_ga') || null;
     }
     const ga_id = getGA();
 
-    // Event ID único por evento
     function gerarEventId() {
       return crypto.randomUUID();
     }
 
-    // Salva principais parâmetros de campanha e cookies
+    // Salva parâmetros UTM e cookies
     const params = new URLSearchParams(window.location.search);
     ["gclid", "fbclid", "fbp", "fbc", "utm_campaign", "utm_source", "utm_medium"].forEach((chave) => {
       const valor = params.get(chave);
       if (valor) setCookie(chave, valor, { domain: ".casadosbolosandrade.com.br" });
     });
 
-    // Detecta preenchimento dos principais campos
+    // Detecta campos do formulário
     let nomeCompleto = getCookie("nome_completo") || "";
     let email = getCookie("email") || "";
     let telefone = getCookie("telefone") || "";
@@ -57,7 +57,6 @@
     document.querySelectorAll("input").forEach((input) => {
       input.addEventListener("input", () => {
         const name = input.name?.toLowerCase() || input.id?.toLowerCase();
-
         if (name?.includes("nome")) {
           nomeCompleto = input.value;
           setCookie("nome_completo", nomeCompleto, { domain: ".casadosbolosandrade.com.br" });
@@ -73,12 +72,12 @@
       });
     });
 
-    // Função para montar e enviar eventos
-    async function enviarEvento(tipoEvento, extra = {}) {
+    // Função universal para enviar eventos
+    async function enviarEvento(tipoEvento, extra = {}, opts = {}) {
       const consent = getCookie("cookie_consent") === "true";
       if (!consent) return;
 
-      // IP (cached por sessão)
+      // Busca IP (apenas para Analytics avançado)
       let ip = sessionStorage.getItem('tracker_ip');
       if (!ip) {
         ip = await fetch("https://api.ipify.org?format=json")
@@ -88,16 +87,18 @@
         sessionStorage.setItem('tracker_ip', ip);
       }
 
-      let origem = "google";
-      if (getCookie("fbclid") || getCookie("fbp") || getCookie("fbc")) origem = "meta";
+      // Origem: só use "google"/"meta" em eventos com api-key
+      let origem = "site"; // padrão anônimo
+      if (opts.forceMeta) origem = "meta";
+      if (opts.forceGoogle) origem = "google";
+      if (extra.origem) origem = extra.origem; // permite override explícito
 
       const nomeSplit = (nomeCompleto || "").trim().split(" ");
       const nome = nomeSplit[0] || null;
       const sobrenome = nomeSplit.slice(1).join(" ") || null;
 
-      // Use currency e valor customizados quando apropriado
       let currency = "BRL";
-      let valor = tipoEvento === "purchase" ? 100 : null; // Troque para valor real se possível!
+      let valor = tipoEvento === "purchase" ? 100 : null;
 
       const payload = {
         nome,
@@ -133,36 +134,48 @@
         device_memory: navigator.deviceMemory || null,
         is_mobile: /Mobi|Android/i.test(navigator.userAgent),
         data_evento: Date.now(),
-        currency: currency,
-        valor: valor,
+        currency,
+        valor,
         ...extra
       };
 
+      // Só manda x-api-key para eventos de lead/conversão (não anônimos)
+      const headers = { "Content-Type": "application/json" };
+      if (opts.apiKey) headers["x-api-key"] = opts.apiKey;
+
       fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(payload)
       });
     }
 
-    // Evento de aceitou cookies (lead anônimo)
+    // ⬇️ Eventos anônimos, não requerem api-key, nem headers extras!
     if (getCookie("cookie_consent") === "true") {
-      enviarEvento("aceitou_cookies");
+      enviarEvento("aceitou_cookies", { origem: "cookies" });
     }
+    enviarEvento("visitou_pagina", { origem: "site" });
 
-    // Eventos de navegação (page_view)
-    enviarEvento("visitou_pagina");
+    // ⬇️ Exemplo: só envie para meta/google (com x-api-key) em eventos que você controla (lead/purchase)
+    // Lógica pode ser disparada num submit de formulário ou evento de conversão real:
+    window.enviarLeadGoogle = function () {
+      enviarEvento("lead", { /* qualquer dado extra */ }, { apiKey: API_KEY, forceGoogle: true });
+    };
+    window.enviarLeadMeta = function () {
+      enviarEvento("lead", { /* qualquer dado extra */ }, { apiKey: API_KEY, forceMeta: true });
+    };
 
-    // Evento de checkout
+    // Checkout e compra (exemplo: você pode customizar com api-key do cliente!)
     const urlAtual = window.location.href.toLowerCase();
     if (urlAtual.includes("/checkout") || urlAtual.includes("/pagamento")) {
-      enviarEvento("initiate_checkout");
+      // Se quiser rastrear conversão Google, use forceGoogle e apiKey
+      // enviarEvento("initiate_checkout", {}, { apiKey: API_KEY, forceGoogle: true });
     }
     if (urlAtual.includes("/obrigado") || urlAtual.includes("/success")) {
-      enviarEvento("purchase");
+      // enviarEvento("purchase", {}, { apiKey: API_KEY, forceGoogle: true });
     }
 
-    // Evento de clique em botões/links
+    // Clique em botões/links
     document.addEventListener("click", function (event) {
       const target = event.target.closest("button, a");
       if (!target) return;
@@ -175,9 +188,8 @@
       enviarEvento(tipoEvento, { texto_botao: target.innerText });
     });
 
-    // (Opcional) Detecta navegação SPA/PWA
-    window.addEventListener("popstate", () => enviarEvento("visitou_pagina"));
-    window.addEventListener("pushstate", () => enviarEvento("visitou_pagina"));
-    // Se usar router custom, adicione hooks também!
+    // SPA navigation
+    window.addEventListener("popstate", () => enviarEvento("visitou_pagina", { origem: "site" }));
+    window.addEventListener("pushstate", () => enviarEvento("visitou_pagina", { origem: "site" }));
   });
 })();

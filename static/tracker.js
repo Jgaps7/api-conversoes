@@ -1,6 +1,7 @@
 (function () {
   document.addEventListener("DOMContentLoaded", function () {
-    const endpoint = "https://painel-conversoes.onrender.com/conversao";
+    // ⬇️ CORRIGIDO: Endpoint direto da API!
+    const endpoint = "https://api-conversoes.onrender.com/conversao";
 
     function getCookie(name) {
       const value = `; ${document.cookie}`;
@@ -16,7 +17,7 @@
 
     // Cookie consent tracker
     if (getCookie('cmplz_banner-status') === 'dismissed') {
-      setCookie('cookie_consent', 'true', { domain: ".seudominio.com" });
+      setCookie('cookie_consent', 'true', { domain: ".casadosbolosandrade.com.br" });
     }
 
     function gerarIdUnico() {
@@ -24,7 +25,7 @@
       let id = getCookie(chave);
       if (!id) {
         id = crypto.randomUUID();
-        setCookie(chave, id, { domain: ".seudominio.com" });
+        setCookie(chave, id, { domain: ".casadosbolosandrade.com.br" });
       }
       return id;
     }
@@ -45,7 +46,7 @@
     const params = new URLSearchParams(window.location.search);
     ["gclid", "fbclid", "fbp", "fbc", "utm_campaign", "utm_source", "utm_medium"].forEach((chave) => {
       const valor = params.get(chave);
-      if (valor) setCookie(chave, valor, { domain: ".seudominio.com" });
+      if (valor) setCookie(chave, valor, { domain: ".casadosbolosandrade.com.br" });
     });
 
     // Detecta preenchimento dos principais campos
@@ -59,15 +60,15 @@
 
         if (name?.includes("nome")) {
           nomeCompleto = input.value;
-          setCookie("nome_completo", nomeCompleto, { domain: ".seudominio.com" });
+          setCookie("nome_completo", nomeCompleto, { domain: ".casadosbolosandrade.com.br" });
         }
         if (name?.includes("email")) {
           email = input.value;
-          setCookie("email", email, { domain: ".seudominio.com" });
+          setCookie("email", email, { domain: ".casadosbolosandrade.com.br" });
         }
         if (name?.includes("telefone") || name?.includes("cel")) {
           telefone = input.value;
-          setCookie("telefone", telefone, { domain: ".seudominio.com" });
+          setCookie("telefone", telefone, { domain: ".casadosbolosandrade.com.br" });
         }
       });
     });
@@ -113,7 +114,7 @@
         origem,
         evento: tipoEvento === "visitou_pagina" ? "page_view" : tipoEvento,
         visitor_id: visitorId,
-        ga_id: ga_id,           // _ga como user_id extra
+        ga_id: ga_id,
         user_id: ga_id || visitorId,
         event_id: gerarEventId(),
         gclid: getCookie("gclid") || null,

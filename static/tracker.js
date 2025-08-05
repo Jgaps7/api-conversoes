@@ -113,7 +113,7 @@
         pagina_destino: window.location.pathname,
         botao_clicado: tipoEvento,
         origem,
-        evento: tipoEvento === "visitou_pagina" ? "page_view" : tipoEvento,
+        evento: tipoEvento === "visitou_pagina" ? "PageView" : tipoEvento,
         visitor_id: visitorId,
         ga_id: ga_id,
         user_id: ga_id || visitorId,

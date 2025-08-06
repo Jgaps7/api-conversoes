@@ -1,9 +1,38 @@
 (function () {
   document.addEventListener("DOMContentLoaded", function () {
-    // Endpoint direto da API
     const endpoint = "https://api-conversoes.onrender.com/conversao";
-    // ⚠️ Defina sua API Key aqui para eventos avançados (lead/purchase), caso necessário!
-    const API_KEY = "rMIQapPK6NyjM9iPriMiJU6_mGySWnp1w3ZqVla02c"; 
+    let geoInfo = {};
+
+    // Função para buscar localização (reversa com Nominatim)
+    function buscarGeolocalizacao(callback) {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(async function (position) {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          try {
+            const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            geoInfo = {
+              cidade: data.address.city || data.address.town || data.address.village || "",
+              regiao: data.address.state || "",
+              pais: data.address.country_code?.toUpperCase() || "",
+              latitude: lat,
+              longitude: lng
+            };
+          } catch (e) {
+            geoInfo = {};
+          }
+          if (callback) callback();
+        }, function () {
+          geoInfo = {};
+          if (callback) callback();
+        });
+      } else {
+        geoInfo = {};
+        if (callback) callback();
+      }
+    }
 
     function getCookie(name) {
       const value = `; ${document.cookie}`;
@@ -17,7 +46,7 @@
       document.cookie = cookieStr;
     }
 
-    // Cookie consent tracker
+    // Consent tracker
     if (getCookie('cmplz_banner-status') === 'dismissed') {
       setCookie('cookie_consent', 'true', { domain: ".casadosbolosandrade.com.br" });
     }
@@ -33,6 +62,7 @@
     }
     const visitorId = gerarIdUnico();
 
+    // Google Analytics (User ID)
     function getGA() {
       return getCookie('_ga') || null;
     }
@@ -42,7 +72,7 @@
       return crypto.randomUUID();
     }
 
-    // Salva parâmetros UTM e cookies
+    // Salva UTM/campanha/cookies principais
     const params = new URLSearchParams(window.location.search);
     ["gclid", "fbclid", "fbp", "fbc", "utm_campaign", "utm_source", "utm_medium"].forEach((chave) => {
       const valor = params.get(chave);
@@ -72,12 +102,12 @@
       });
     });
 
-    // Função universal para enviar eventos
-    async function enviarEvento(tipoEvento, extra = {}, opts = {}) {
+    // Função para montar e enviar eventos (agora usa geoInfo)
+    async function enviarEvento(tipoEvento, extra = {}) {
       const consent = getCookie("cookie_consent") === "true";
       if (!consent) return;
 
-      // Busca IP (apenas para Analytics avançado)
+      // IP (cached por sessão)
       let ip = sessionStorage.getItem('tracker_ip');
       if (!ip) {
         ip = await fetch("https://api.ipify.org?format=json")
@@ -87,11 +117,8 @@
         sessionStorage.setItem('tracker_ip', ip);
       }
 
-      // Origem: só use "google"/"meta" em eventos com api-key
-      let origem = "site"; // padrão anônimo
-      if (opts.forceMeta) origem = "meta";
-      if (opts.forceGoogle) origem = "google";
-      if (extra.origem) origem = extra.origem; // permite override explícito
+      let origem = "google";
+      if (getCookie("fbclid") || getCookie("fbp") || getCookie("fbc")) origem = "meta";
 
       const nomeSplit = (nomeCompleto || "").trim().split(" ");
       const nome = nomeSplit[0] || null;
@@ -101,6 +128,7 @@
       let valor = tipoEvento === "purchase" ? 100 : null;
 
       const payload = {
+        ...geoInfo, // Inclui cidade/regiao/pais/lat/lng se disponível
         nome,
         sobrenome,
         email: email || null,
@@ -113,7 +141,7 @@
         pagina_destino: window.location.pathname,
         botao_clicado: tipoEvento,
         origem,
-        evento: tipoEvento === "visitou_pagina" ? "PageView" : tipoEvento,
+        evento: tipoEvento === "visitou_pagina" ? "page_view" : tipoEvento,
         visitor_id: visitorId,
         ga_id: ga_id,
         user_id: ga_id || visitorId,
@@ -134,48 +162,34 @@
         device_memory: navigator.deviceMemory || null,
         is_mobile: /Mobi|Android/i.test(navigator.userAgent),
         data_evento: Date.now(),
-        currency,
-        valor,
+        currency: currency,
+        valor: valor,
         ...extra
       };
 
-      // Só manda x-api-key para eventos de lead/conversão (não anônimos)
-      const headers = { "Content-Type": "application/json" };
-      if (opts.apiKey) headers["x-api-key"] = opts.apiKey;
-
       fetch(endpoint, {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
     }
 
-    // ⬇️ Eventos anônimos, não requerem api-key, nem headers extras!
-    if (getCookie("cookie_consent") === "true") {
-      enviarEvento("aceitou_cookies", { origem: "cookies" });
-    }
-    enviarEvento("visitou_pagina", { origem: "site" });
+    // Aguardar geolocalização no primeiro evento!
+    function inicializaEventosComGeo() {
+      enviarEvento("aceitou_cookies");
+      enviarEvento("visitou_pagina");
 
-    // ⬇️ Exemplo: só envie para meta/google (com x-api-key) em eventos que você controla (lead/purchase)
-    // Lógica pode ser disparada num submit de formulário ou evento de conversão real:
-    window.enviarLeadGoogle = function () {
-      enviarEvento("lead", { /* qualquer dado extra */ }, { apiKey: API_KEY, forceGoogle: true });
-    };
-    window.enviarLeadMeta = function () {
-      enviarEvento("lead", { /* qualquer dado extra */ }, { apiKey: API_KEY, forceMeta: true });
-    };
-
-    // Checkout e compra (exemplo: você pode customizar com api-key do cliente!)
-    const urlAtual = window.location.href.toLowerCase();
-    if (urlAtual.includes("/checkout") || urlAtual.includes("/pagamento")) {
-      // Se quiser rastrear conversão Google, use forceGoogle e apiKey
-      // enviarEvento("initiate_checkout", {}, { apiKey: API_KEY, forceGoogle: true });
-    }
-    if (urlAtual.includes("/obrigado") || urlAtual.includes("/success")) {
-      // enviarEvento("purchase", {}, { apiKey: API_KEY, forceGoogle: true });
+      // Evento de checkout
+      const urlAtual = window.location.href.toLowerCase();
+      if (urlAtual.includes("/checkout") || urlAtual.includes("/pagamento")) {
+        enviarEvento("initiate_checkout");
+      }
+      if (urlAtual.includes("/obrigado") || urlAtual.includes("/success")) {
+        enviarEvento("purchase");
+      }
     }
 
-    // Clique em botões/links
+    // Evento de clique em botões/links
     document.addEventListener("click", function (event) {
       const target = event.target.closest("button, a");
       if (!target) return;
@@ -188,8 +202,14 @@
       enviarEvento(tipoEvento, { texto_botao: target.innerText });
     });
 
-    // SPA navigation
-    window.addEventListener("popstate", () => enviarEvento("visitou_pagina", { origem: "site" }));
-    window.addEventListener("pushstate", () => enviarEvento("visitou_pagina", { origem: "site" }));
+    // SPA/PWA navigation
+    window.addEventListener("popstate", () => enviarEvento("visitou_pagina"));
+    window.addEventListener("pushstate", () => enviarEvento("visitou_pagina"));
+
+    // ---- Execução: Aguarda consentimento e busca geo ----
+    if (getCookie("cookie_consent") === "true") {
+      buscarGeolocalizacao(inicializaEventosComGeo);
+    }
+    // Se quiser garantir que pageview seja enviado mesmo sem geo, use fallback após timeout
   });
 })();

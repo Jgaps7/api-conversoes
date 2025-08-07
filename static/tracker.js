@@ -3,7 +3,6 @@
     const endpoint = "https://api-conversoes.onrender.com/conversao";
     let geoInfo = {};
 
-    // Função para buscar localização (reversa com Nominatim)
     function buscarGeolocalizacao(callback) {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(async function (position) {
@@ -46,7 +45,6 @@
       document.cookie = cookieStr;
     }
 
-    // Consent tracker
     if (getCookie('cmplz_banner-status') === 'dismissed') {
       setCookie('cookie_consent', 'true', { domain: ".casadosbolosandrade.com.br" });
     }
@@ -62,7 +60,6 @@
     }
     const visitorId = gerarIdUnico();
 
-    // Google Analytics (User ID)
     function getGA() {
       return getCookie('_ga') || null;
     }
@@ -72,14 +69,12 @@
       return crypto.randomUUID();
     }
 
-    // Salva UTM/campanha/cookies principais
     const params = new URLSearchParams(window.location.search);
     ["gclid", "fbclid", "fbp", "fbc", "utm_campaign", "utm_source", "utm_medium"].forEach((chave) => {
       const valor = params.get(chave);
       if (valor) setCookie(chave, valor, { domain: ".casadosbolosandrade.com.br" });
     });
 
-    // Detecta campos do formulário
     let nomeCompleto = getCookie("nome_completo") || "";
     let email = getCookie("email") || "";
     let telefone = getCookie("telefone") || "";
@@ -102,12 +97,10 @@
       });
     });
 
-    // Função para montar e enviar eventos (agora usa geoInfo)
     async function enviarEvento(tipoEvento, extra = {}) {
       const consent = getCookie("cookie_consent") === "true";
       if (!consent) return;
 
-      // IP (cached por sessão)
       let ip = sessionStorage.getItem('tracker_ip');
       if (!ip) {
         ip = await fetch("https://api.ipify.org?format=json")
@@ -128,7 +121,7 @@
       let valor = tipoEvento === "purchase" ? 100 : null;
 
       const payload = {
-        ...geoInfo, // Inclui cidade/regiao/pais/lat/lng se disponível
+        ...geoInfo,
         nome,
         sobrenome,
         email: email || null,
@@ -174,12 +167,10 @@
       });
     }
 
-    // Aguardar geolocalização no primeiro evento!
     function inicializaEventosComGeo() {
       enviarEvento("aceitou_cookies");
       enviarEvento("visitou_pagina");
 
-      // Evento de checkout
       const urlAtual = window.location.href.toLowerCase();
       if (urlAtual.includes("/checkout") || urlAtual.includes("/pagamento")) {
         enviarEvento("initiate_checkout");
@@ -189,7 +180,6 @@
       }
     }
 
-    // Evento de clique em botões/links
     document.addEventListener("click", function (event) {
       const target = event.target.closest("button, a");
       if (!target) return;
@@ -202,14 +192,20 @@
       enviarEvento(tipoEvento, { texto_botao: target.innerText });
     });
 
-    // SPA/PWA navigation
     window.addEventListener("popstate", () => enviarEvento("visitou_pagina"));
     window.addEventListener("pushstate", () => enviarEvento("visitou_pagina"));
 
-    // ---- Execução: Aguarda consentimento e busca geo ----
+    // Timeout fallback para geo, nunca perder evento!
     if (getCookie("cookie_consent") === "true") {
-      buscarGeolocalizacao(inicializaEventosComGeo);
+      let jaChamou = false;
+      function chamaSeNaoChamou() {
+        if (!jaChamou) {
+          jaChamou = true;
+          inicializaEventosComGeo();
+        }
+      }
+      buscarGeolocalizacao(chamaSeNaoChamou);
+      setTimeout(chamaSeNaoChamou, 2000);
     }
-    // Se quiser garantir que pageview seja enviado mesmo sem geo, use fallback após timeout
   });
 })();

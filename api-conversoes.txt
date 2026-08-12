@@ -1,15 +1,12 @@
 api-conversoes/
 │
-├── api/                      # FastAPI e scripts de recebimento/envio
-│
-├── dashboard/                # App Streamlit (pode ser separado)
-│   ├── app.py                # Interface principal
-│   ├── pages/                # Subpáginas se quiser segmentar por cliente
-│   └── utils/                # Funções para conectar no DB, formatar dados
-│
-├── eventos.db                # Seu banco (ou conexão para PostgreSQL)
-├── .env
-└── requirements.txt
+├── api/                      # FastAPI endpoints and event delivery services
+├── painel/                   # Streamlit dashboard and authentication
+├── database/                 # Database-related files
+├── static/                   # Static assets
+├── utils/                    # Logging and configuration helpers
+├── supabase_conn.py          # PostgreSQL/Supabase connection helper
+├── requirements.txt          # Python dependencies
+└── Procfile                  # Deployment process definition
 
-login - admin@grow.com
-senha - admin123
+Security note: credentials and environment-specific secrets are intentionally not stored in this repository. Use environment variables for database credentials, API keys, and authentication secrets.
